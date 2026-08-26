@@ -37,6 +37,9 @@ class KaspiTrackerApp : Application() {
                 // ...then fill in rows that predate auto-categorization or that
                 // those rules now cover.
                 repository.backfillCategories()
+                // ...and pair up any own-card transfers already in history,
+                // which matters the first time a second card shows up.
+                repository.markSelfTransfers()
             }.onFailure { Log.e("KaspiTrackerApp", "Category backfill failed", it) }
         }
     }
