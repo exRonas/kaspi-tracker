@@ -1,0 +1,19 @@
+# Android / Gradle build output
+*.iml
+.gradle/
+build/
+/local.properties
+.idea/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/.kotlin
+
+# Personal data — receipts and DB snapshots must never be committed
+*.db
+*.db-wal
+*.db-shm
+*.pdf
+out*.txt

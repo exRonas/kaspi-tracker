@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme used before Compose takes over. Kept dark to avoid
+         a white flash on launch. The real styling lives in KaspiTrackerTheme. -->
+    <style name="Theme.KaspiTracker" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowBackground">@color/background</item>
+    </style>
+</resources>
