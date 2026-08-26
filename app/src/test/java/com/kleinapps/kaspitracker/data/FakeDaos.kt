@@ -60,13 +60,25 @@ class FakeTransactionDao : TransactionDao {
 
     override fun observeSpendings(): Flow<List<Transaction>> =
         rows.map { list ->
-            list.filter { it.amount != null && it.type.isSpending }.sortedBy { it.timestamp }
+            list.filter { it.amount != null && it.type.isSpending && !it.excludedFromStats }
+                .sortedBy { it.timestamp }
         }
+
+    override suspend fun getNotificationTimestamps(): List<Long> =
+        rows.value.filter { it.source == TxSource.NOTIFICATION }
+            .sortedByDescending { it.timestamp }
+            .take(200)
+            .map { it.timestamp }
+
+    override suspend fun getRecentWithAccount(): List<Transaction> =
+        rows.value.filter { it.amount != null && it.account != null }
+            .sortedByDescending { it.timestamp }
+            .take(400)
 
     override suspend fun sumSpentInCategory(category: Category, from: Long, to: Long): Double =
         rows.value
             .filter {
-                it.amount != null && it.type.isSpending &&
+                it.amount != null && it.type.isSpending && !it.excludedFromStats &&
                     it.category == category && it.timestamp in from..to
             }
             .sumOf { it.amount ?: 0.0 }
@@ -117,8 +129,9 @@ class FakeTransactionDao : TransactionDao {
 
     override fun observeSpentBetween(from: Long, to: Long): Flow<Double> =
         rows.map { list ->
-            list.filter { it.timestamp in from..to && it.type.isSpending }
-                .sumOf { it.amount ?: 0.0 }
+            list.filter {
+                it.timestamp in from..to && it.type.isSpending && !it.excludedFromStats
+            }.sumOf { it.amount ?: 0.0 }
         }
 
     override fun observeBetween(from: Long, to: Long): Flow<List<Transaction>> =
@@ -128,8 +141,9 @@ class FakeTransactionDao : TransactionDao {
 
     override fun observeIncomeBetween(from: Long, to: Long): Flow<Double> =
         rows.map { list ->
-            list.filter { it.timestamp in from..to && it.type == TxType.TRANSFER_IN }
-                .sumOf { it.amount ?: 0.0 }
+            list.filter {
+                it.timestamp in from..to && it.type == TxType.TRANSFER_IN && !it.excludedFromStats
+            }.sumOf { it.amount ?: 0.0 }
         }
 }
 

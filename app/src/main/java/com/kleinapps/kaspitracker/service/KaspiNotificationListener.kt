@@ -56,6 +56,10 @@ class KaspiNotificationListener : NotificationListenerService() {
         val raw = listOfNotNull(title, body).joinToString(separator = " — ").trim()
         if (raw.isBlank()) return
 
+        // Every Kaspi push counts as a sign of life, parsed or not — the
+        // watchdog only cares that the binding is still delivering.
+        ListenerWatchdog.recordNotificationSeen(this, notification.postTime)
+
         val parsed = KaspiNotificationParser.parse(title, body)
         val transaction = Transaction(
             timestamp = notification.postTime.takeIf { it > 0 } ?: System.currentTimeMillis(),

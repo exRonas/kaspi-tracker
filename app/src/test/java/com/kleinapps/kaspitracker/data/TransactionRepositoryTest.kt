@@ -336,6 +336,66 @@ class TransactionRepositoryTest {
         assertEquals(0, calls)
     }
 
+    // --- transfers between own cards ---------------------------------------
+
+    private fun cardTx(
+        amount: Double,
+        type: TxType,
+        account: String,
+        timestamp: Long
+    ) = Transaction(
+        timestamp = timestamp,
+        title = account,
+        rawText = "push",
+        amount = amount,
+        type = type,
+        merchant = null,
+        account = account
+    )
+
+    @Test
+    fun `moving money to own deposit is not spending and not income`() = runTest {
+        val now = System.currentTimeMillis()
+        repo.insert(cardTx(50_000.0, TxType.TRANSFER_OUT, "Kaspi Gold", now))
+        repo.insert(cardTx(50_000.0, TxType.TRANSFER_IN, "Kaspi Депозит", now + 3_000))
+
+        assertEquals(2, dao.rows.value.size)
+        assertTrue(dao.rows.value.all { it.excludedFromStats })
+    }
+
+    @Test
+    fun `a real purchase keeps counting`() = runTest {
+        val now = System.currentTimeMillis()
+        repo.insert(cardTx(50_000.0, TxType.TRANSFER_OUT, "Kaspi Gold", now))
+        repo.insert(cardTx(1_240.0, TxType.PURCHASE, "Kaspi Gold", now + 3_000))
+
+        val purchase = dao.rows.value.first { it.amount == 1_240.0 }
+        assertFalse(purchase.excludedFromStats)
+    }
+
+    @Test
+    fun `an excluded transfer never triggers a budget alert`() = runTest {
+        var calls = 0
+        val budgets = FakeBudgetDao()
+        budgets.upsert(Budget(Category.TRANSFER, 1_000.0))
+        val watched = TransactionRepository(dao, budgets, ruleDao) { _, _, _ -> calls++ }
+
+        val now = System.currentTimeMillis()
+        watched.insert(
+            cardTx(50_000.0, TxType.TRANSFER_OUT, "Kaspi Gold", now)
+                .copy(category = Category.TRANSFER)
+        )
+        watched.insert(
+            cardTx(50_000.0, TxType.TRANSFER_IN, "Kaspi Депозит", now + 3_000)
+                .copy(category = Category.TRANSFER)
+        )
+
+        // The outgoing leg fires once before its pair arrives and marks it
+        // excluded; what matters is that the excluded row is not counted again.
+        assertTrue(calls <= 1)
+        assertTrue(dao.rows.value.all { it.excludedFromStats })
+    }
+
     // --- backup ------------------------------------------------------------
 
     @Test

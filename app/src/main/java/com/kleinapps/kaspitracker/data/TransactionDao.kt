@@ -136,11 +136,38 @@ interface TransactionDao {
         to: Long
     ): Transaction?
 
+    /**
+     * When Kaspi pushes arrived, newest first — the watchdog derives the user's
+     * normal rhythm from these to know how long a silence is too long.
+     */
+    @Query(
+        """
+        SELECT timestamp FROM transactions
+        WHERE source = 'NOTIFICATION'
+        ORDER BY timestamp DESC LIMIT 200
+        """
+    )
+    suspend fun getNotificationTimestamps(): List<Long>
+
+    /**
+     * Transfers that carry an account, newest first — the pool the self-transfer
+     * matcher works over. Capped: pairs are minutes apart, never months.
+     */
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE amount IS NOT NULL AND account IS NOT NULL
+        ORDER BY timestamp DESC LIMIT 400
+        """
+    )
+    suspend fun getRecentWithAccount(): List<Transaction>
+
     /** Spending rows of one merchant, oldest first — used to spot subscriptions. */
     @Query(
         """
         SELECT * FROM transactions
-        WHERE amount IS NOT NULL AND type IN ('PURCHASE', 'TRANSFER_OUT')
+        WHERE amount IS NOT NULL AND excludedFromStats = 0
+          AND type IN ('PURCHASE', 'TRANSFER_OUT')
         ORDER BY timestamp ASC
         """
     )
@@ -175,6 +202,7 @@ interface TransactionDao {
         """
         SELECT COALESCE(SUM(amount), 0) FROM transactions
         WHERE amount IS NOT NULL
+          AND excludedFromStats = 0
           AND type IN ('PURCHASE', 'TRANSFER_OUT')
           AND category = :category
           AND timestamp BETWEEN :from AND :to
@@ -187,6 +215,7 @@ interface TransactionDao {
         """
         SELECT COALESCE(SUM(amount), 0) FROM transactions
         WHERE amount IS NOT NULL
+          AND excludedFromStats = 0
           AND type IN ('PURCHASE', 'TRANSFER_OUT')
           AND timestamp BETWEEN :from AND :to
         """
@@ -207,6 +236,7 @@ interface TransactionDao {
         """
         SELECT COALESCE(SUM(amount), 0) FROM transactions
         WHERE amount IS NOT NULL
+          AND excludedFromStats = 0
           AND type = 'TRANSFER_IN'
           AND timestamp BETWEEN :from AND :to
         """

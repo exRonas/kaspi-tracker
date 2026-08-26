@@ -98,6 +98,7 @@ object Backup {
         put("account", tx.account ?: JSONObject.NULL)
         put("dedupKey", tx.dedupKey ?: JSONObject.NULL)
         put("balance", tx.balance ?: JSONObject.NULL)
+        put("excludedFromStats", tx.excludedFromStats)
     }
 
     private fun decodeTransaction(obj: JSONObject) = Transaction(
@@ -113,7 +114,8 @@ object Backup {
         category = obj.optString("category").toCategoryOrNull(),
         account = obj.optStringOrNull("account"),
         dedupKey = obj.optStringOrNull("dedupKey"),
-        balance = obj.optDoubleOrNull("balance")
+        balance = obj.optDoubleOrNull("balance"),
+        excludedFromStats = obj.optBoolean("excludedFromStats", false)
     )
 
     /**

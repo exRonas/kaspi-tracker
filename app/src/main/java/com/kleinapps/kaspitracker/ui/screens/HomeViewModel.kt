@@ -7,14 +7,18 @@ import com.kleinapps.kaspitracker.data.AccountBalance
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TransactionRepository
+import com.kleinapps.kaspitracker.service.ListenerWatchdog
+import com.kleinapps.kaspitracker.service.NotificationHealth
 import com.kleinapps.kaspitracker.util.MonthForecast
 import com.kleinapps.kaspitracker.util.forecastMonth
+import com.kleinapps.kaspitracker.util.isNotificationAccessGranted
 import com.kleinapps.kaspitracker.util.startOfDay
 import com.kleinapps.kaspitracker.util.startOfMonth
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class DayBar(val label: String, val dayStart: Long, val amount: Double)
 
@@ -38,7 +42,13 @@ data class HomeUiState(
      * as better or worse than usual instead of just being a big number. Null
      * until there is a previous month to compare against.
      */
-    val sameSpanLastMonth: Double? = null
+    val sameSpanLastMonth: Double? = null,
+    /**
+     * Hours since the last Kaspi push, set only when that silence is longer
+     * than the user's own rhythm explains — i.e. when the listener has most
+     * likely been killed and spending is going unrecorded.
+     */
+    val silentForHours: Int? = null
 ) {
     /** Share more (positive) or less (negative) than the same days last month. */
     val monthTrend: Double?
@@ -50,6 +60,16 @@ data class HomeUiState(
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = TransactionRepository.get(app)
+
+    /** Sample of past push times, read once — the rhythm changes slowly. */
+    private var notificationHistory: List<Long> = emptyList()
+
+    init {
+        viewModelScope.launch {
+            notificationHistory = runCatching { repo.notificationTimestamps() }
+                .getOrDefault(emptyList())
+        }
+    }
 
     // Recomputed on every emission: the app is often left open past midnight (or
     // over a month boundary), and a "now" captured once would keep showing
@@ -104,9 +124,23 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             balances = balances.sortedByDescending { it.timestamp },
             balanceHistory = balanceHistory,
             forecast = forecastMonth(monthSpendings.sumOf { it.amount ?: 0.0 }, now),
+            silentForHours = listenerSilence(now),
             sameSpanLastMonth = previousSpan.takeIf { it > 0 }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /**
+     * Hours of unexplained silence from the listener, or null while it is
+     * healthy. The threshold comes from the user's own push history, so a quiet
+     * weekend does not raise a false alarm.
+     */
+    private fun listenerSilence(now: Long): Int? {
+        val context = getApplication<Application>()
+        val lastSeen = ListenerWatchdog.lastNotificationAt(context) ?: return null
+        if (!isNotificationAccessGranted(context)) return null
+        if (!NotificationHealth.isSilent(lastSeen, notificationHistory, now)) return null
+        return NotificationHealth.hoursSince(lastSeen, now)
+    }
 
     private fun buildWeekBars(now: Long, weekTx: List<Transaction>): List<DayBar> {
         val labels = arrayOf("Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб")

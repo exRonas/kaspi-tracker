@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CreditCard
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.RuleFolder
@@ -94,6 +96,7 @@ import com.kleinapps.kaspitracker.ui.theme.Spend
 import com.kleinapps.kaspitracker.ui.theme.ThemeController
 import com.kleinapps.kaspitracker.ui.theme.ThemeMode
 import com.kleinapps.kaspitracker.ui.theme.Violet
+import com.kleinapps.kaspitracker.ui.theme.Warning
 import com.kleinapps.kaspitracker.ui.theme.VioletDeep
 import com.kleinapps.kaspitracker.util.MonthForecast
 import com.kleinapps.kaspitracker.util.formatDayHeader
@@ -193,6 +196,16 @@ fun HomeScreen(
                     forecast = state.forecast,
                     trend = state.monthTrend
                 )
+            }
+
+            state.silentForHours?.let { hours ->
+                item {
+                    SilentListenerBanner(hours) {
+                        context.startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        )
+                    }
+                }
             }
 
             if (state.balances.isNotEmpty()) {
@@ -684,6 +697,42 @@ private fun BalanceCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Raised when Kaspi has been quiet for longer than the user's own rhythm
+ * explains — almost always the OEM battery manager having killed the listener.
+ * The app cannot fix that on its own, so it says so instead of pretending the
+ * empty history is real.
+ */
+@Composable
+private fun SilentListenerBanner(hours: Int, onOpenSettings: () -> Unit) {
+    AppCard(onClick = onOpenSettings, accent = Warning) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            IconBadge(icon = Icons.Filled.NotificationsOff, tint = Warning)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Операции не приходят ${hours} ч",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Похоже, система усыпила приложение. Проверь доступ к " +
+                        "уведомлениям и сними ограничения батареи.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

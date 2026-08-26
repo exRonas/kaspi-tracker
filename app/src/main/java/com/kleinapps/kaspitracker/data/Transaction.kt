@@ -56,5 +56,13 @@ data class Transaction(
      * Money left on the card after the operation, from the "Доступно: … ₸" line
      * of a Kaspi push. Only notifications carry it.
      */
-    val balance: Double? = null
+    val balance: Double? = null,
+    /**
+     * Kept in the history but left out of every total.
+     *
+     * Set for money that never actually left the user's pocket: transfers
+     * between their own cards (Kaspi reports those as an expense *and* an
+     * income), refunds, and rows corrected by hand.
+     */
+    val excludedFromStats: Boolean = false
 )

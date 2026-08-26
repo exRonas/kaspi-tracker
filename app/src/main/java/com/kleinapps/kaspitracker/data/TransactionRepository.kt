@@ -69,6 +69,9 @@ class TransactionRepository(
                 }
         }
 
+    /** When Kaspi pushes arrived — the watchdog's sample of the normal rhythm. */
+    suspend fun notificationTimestamps(): List<Long> = dao.getNotificationTimestamps()
+
     /** Recurring payments (subscriptions, memberships) found in the history. */
     fun observeSubscriptions(): Flow<List<Subscription>> =
         dao.observeSpendings().map { SubscriptionDetector.detect(it) }
@@ -87,6 +90,7 @@ class TransactionRepository(
     suspend fun insert(transaction: Transaction): Long {
         val stored = autoCategorize(transaction)
         val id = dao.insert(stored)
+        markSelfTransfers()
         reportBudget(stored)
         return id
     }
@@ -112,7 +116,10 @@ class TransactionRepository(
             return@withLock null
         }
         val stored = autoCategorize(transaction)
-        dao.insert(stored).also { reportBudget(stored) }
+        dao.insert(stored).also {
+            markSelfTransfers()
+            reportBudget(stored)
+        }
     }
 
     suspend fun findDuplicateNotification(dedupKey: String, timestamp: Long): Transaction? =
@@ -222,6 +229,25 @@ class TransactionRepository(
      * and the balance out of the "Доступно" line. Only rows still missing one of
      * those are touched, so re-running costs nothing.
      */
+    /**
+     * Marks both halves of a transfer between the user's own cards so the money
+     * is not counted as spending on one side and income on the other.
+     *
+     * Runs over the recent window after every insert: the matching half may
+     * arrive either before or after the row being stored.
+     */
+    suspend fun markSelfTransfers() {
+        val candidates = dao.getRecentWithAccount()
+        val ownAccounts = SelfTransfer.ownAccountsIn(candidates)
+        if (ownAccounts.size < 2) return
+
+        SelfTransfer.findAll(candidates, ownAccounts).forEach { (first, second) ->
+            listOf(first, second)
+                .filterNot { it.excludedFromStats }
+                .forEach { dao.update(it.copy(excludedFromStats = true)) }
+        }
+    }
+
     suspend fun backfillNotificationMerchants() {
         dao.getNotificationsWithoutMerchant().forEach { tx ->
             // rawText is "<title> — <body>"; the parser wants the body alone.
@@ -276,7 +302,7 @@ class TransactionRepository(
     private suspend fun reportBudget(tx: Transaction) {
         val watcher = budgetWatcher ?: return
         val category = tx.category ?: return
-        if (!tx.type.isSpending || tx.amount == null) return
+        if (!tx.type.isSpending || tx.amount == null || tx.excludedFromStats) return
 
         val monthStart = startOfMonth()
         if (tx.timestamp < monthStart) return

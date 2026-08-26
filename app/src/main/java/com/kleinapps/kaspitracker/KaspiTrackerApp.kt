@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.kleinapps.kaspitracker.data.TransactionRepository
 import com.kleinapps.kaspitracker.service.AutoBackup
+import com.kleinapps.kaspitracker.service.ListenerWatchdog
 import com.kleinapps.kaspitracker.ui.theme.ThemeController
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +25,8 @@ class KaspiTrackerApp : Application() {
         ThemeController.init(this)
         // Weekly safety-net copy of everything into Downloads.
         AutoBackup.schedule(this)
+        // Periodic check that the notification listener is still being fed.
+        ListenerWatchdog.schedule(this)
         appScope.launch {
             runCatching {
                 // Turn categories the user already assigned by hand into rules,
