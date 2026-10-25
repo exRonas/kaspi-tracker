@@ -1,6 +1,8 @@
 package com.kleinapps.kaspitracker.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,7 +47,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TxType
+import com.kleinapps.kaspitracker.data.isCountedSpending
 import com.kleinapps.kaspitracker.ui.components.EditTransactionSheet
+import com.kleinapps.kaspitracker.ui.components.SelectionBar
 import com.kleinapps.kaspitracker.ui.components.TransactionRow
 import com.kleinapps.kaspitracker.ui.components.label
 import com.kleinapps.kaspitracker.util.formatMoney
@@ -68,11 +71,30 @@ fun HistoryScreen(
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var pendingDelete by remember { mutableStateOf<Transaction?>(null) }
     var editing by remember { mutableStateOf<Transaction?>(null) }
+    // Ids picked with a long press; non-empty means the screen is in pick mode.
+    var selected by remember { mutableStateOf(emptySet<Long>()) }
+    val picking = selected.isNotEmpty()
+    BackHandler(enabled = picking) { selected = emptySet() }
+
+    fun toggle(ids: Collection<Long>) {
+        selected = if (ids.all { it in selected }) selected - ids.toSet() else selected + ids
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
+        if (picking) {
+            val picked = state.grouped.values.flatten().filter { it.id in selected }
+            SelectionBar(
+                count = picked.size,
+                total = picked.sumOf { it.amount ?: 0.0 },
+                onShared = { viewModel.markShared(selected, true); selected = emptySet() },
+                onOwn = { viewModel.markShared(selected, false); selected = emptySet() },
+                onCategory = { viewModel.recategorize(selected, it); selected = emptySet() },
+                onDelete = { viewModel.deleteMany(selected); selected = emptySet() },
+                onClose = { selected = emptySet() },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        } else Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -111,6 +133,15 @@ fun HistoryScreen(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            listOf(true to "Общие", false to "Свои").forEach { (value, label) ->
+                FilterChip(
+                    selected = state.filters.shared == value,
+                    onClick = {
+                        viewModel.setSharedFilter(if (state.filters.shared == value) null else value)
+                    },
+                    label = { Text(label) }
+                )
+            }
             listOf(TxType.PURCHASE, TxType.TRANSFER_OUT, TxType.TRANSFER_IN).forEach { t ->
                 FilterChip(
                     selected = state.filters.type == t,
@@ -180,11 +211,16 @@ fun HistoryScreen(
                 state.grouped.forEach { (header, items) ->
                     item(key = "header_$header") {
                         val dayTotal = items
-                            .filter { it.amount != null && it.type.isSpending }
+                            .filter { it.isCountedSpending }
                             .sumOf { it.amount ?: 0.0 }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                // In pick mode a tap on the day takes the whole day.
+                                .then(
+                                    if (picking) Modifier.clickable { toggle(items.map { it.id }) }
+                                    else Modifier
+                                )
                                 .padding(top = 12.dp, bottom = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -213,9 +249,12 @@ fun HistoryScreen(
                                 items.forEach { tx ->
                                     TransactionRow(
                                         tx = tx,
+                                        selected = if (picking) tx.id in selected else null,
                                         modifier = Modifier.combinedClickable(
-                                            onClick = { editing = tx },
-                                            onLongClick = { pendingDelete = tx }
+                                            onClick = {
+                                                if (picking) toggle(listOf(tx.id)) else editing = tx
+                                            },
+                                            onLongClick = { toggle(listOf(tx.id)) }
                                         )
                                     )
                                 }
@@ -236,28 +275,6 @@ fun HistoryScreen(
                 editing = null
             },
             onDismiss = { editing = null }
-        )
-    }
-
-    pendingDelete?.let { tx ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Удалить операцию?") },
-            text = {
-                Text(
-                    tx.merchant?.let { "$it · ${formatMoney(tx.amount, tx.currency)}" }
-                        ?: tx.rawText
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.delete(tx)
-                    pendingDelete = null
-                }) { Text("Удалить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
-            }
         )
     }
 }

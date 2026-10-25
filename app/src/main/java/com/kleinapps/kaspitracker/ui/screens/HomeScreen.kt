@@ -1,6 +1,13 @@
 package com.kleinapps.kaspitracker.ui.screens
 
 import android.content.Intent
+import com.kleinapps.kaspitracker.ui.components.SelectionBar
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.activity.compose.BackHandler
 import android.provider.Settings
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -107,6 +114,7 @@ import com.kleinapps.kaspitracker.util.formatMoneyWhole
 import com.kleinapps.kaspitracker.util.formatTime
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     notificationAccessGranted: Boolean,
@@ -122,6 +130,10 @@ fun HomeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val themeMode by ThemeController.mode.collectAsStateWithLifecycle()
+    // Recent operations picked with a long press; non-empty means pick mode.
+    var selected by remember { mutableStateOf(emptySet<Long>()) }
+    val picking = selected.isNotEmpty()
+    BackHandler(enabled = picking) { selected = emptySet() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -253,10 +265,35 @@ fun HomeScreen(
                     }
                 }
             } else {
+                if (picking) {
+                    item {
+                        val picked = state.recent.filter { it.id in selected }
+                        SelectionBar(
+                            count = picked.size,
+                            total = picked.sumOf { it.amount ?: 0.0 },
+                            onShared = { viewModel.markShared(selected, true); selected = emptySet() },
+                            onOwn = { viewModel.markShared(selected, false); selected = emptySet() },
+                            onCategory = { viewModel.recategorize(selected, it); selected = emptySet() },
+                            onDelete = { viewModel.deleteMany(selected); selected = emptySet() },
+                            onClose = { selected = emptySet() }
+                        )
+                    }
+                }
                 item {
                     AppCard(contentPadding = 6.dp) {
                         state.recent.forEachIndexed { index, tx ->
-                            TransactionRow(tx, modifier = Modifier.padding(horizontal = 12.dp))
+                            TransactionRow(
+                                tx = tx,
+                                selected = if (picking) tx.id in selected else null,
+                                modifier = Modifier
+                                    // Long press starts picking; while picking a
+                                    // tap toggles. Outside pick mode rows stay inert.
+                                    .combinedClickable(
+                                        onClick = { if (picking) selected = selected.toggle(tx.id) },
+                                        onLongClick = { selected = selected.toggle(tx.id) }
+                                    )
+                                    .padding(horizontal = 12.dp)
+                            )
                             if (index != state.recent.lastIndex) {
                                 Box(
                                     modifier = Modifier
@@ -817,3 +854,5 @@ internal fun EmptyHint(text: String) {
         )
     }
 }
+
+private fun Set<Long>.toggle(id: Long): Set<Long> = if (id in this) this - id else this + id

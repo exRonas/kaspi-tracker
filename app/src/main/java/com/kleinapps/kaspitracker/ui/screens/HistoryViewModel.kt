@@ -28,6 +28,8 @@ data class HistoryFilters(
     val type: TxType? = null,
     val category: Category? = null,
     val account: String? = null,
+    /** true — only shared operations, false — only own ones, null — both. */
+    val shared: Boolean? = null,
     /** Time window, set when arriving from a period on the analytics screen. */
     val from: Long? = null,
     val to: Long? = null,
@@ -36,7 +38,7 @@ data class HistoryFilters(
 ) {
     val isActive: Boolean
         get() = query.isNotBlank() || type != null || category != null ||
-            account != null || from != null || to != null
+            account != null || shared != null || from != null || to != null
 }
 
 data class HistoryUiState(
@@ -71,6 +73,7 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
         if (f.type != null && tx.type != f.type) return false
         if (f.category != null && (tx.category ?: Category.OTHER) != f.category) return false
         if (f.account != null && tx.account != f.account) return false
+        if (f.shared != null && tx.shared != f.shared) return false
         if (f.query.isNotBlank()) {
             val q = f.query.trim().lowercase()
             val haystack = listOfNotNull(
@@ -85,6 +88,7 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
     fun setType(type: TxType?) = update { it.copy(type = type) }
     fun setCategory(category: Category?) = update { it.copy(category = category) }
     fun setAccount(account: String?) = update { it.copy(account = account) }
+    fun setSharedFilter(shared: Boolean?) = update { it.copy(shared = shared) }
 
     /** Applies the category + period the user tapped on the analytics screen. */
     fun applyDrillDown(category: Category?, from: Long?, to: Long?, periodLabel: String?) {
@@ -105,12 +109,20 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
         filtersFlow.value = block(filtersFlow.value)
     }
 
-    fun delete(transaction: Transaction) {
-        viewModelScope.launch { repo.delete(transaction) }
-    }
-
     fun save(transaction: Transaction) {
         viewModelScope.launch { repo.update(transaction) }
+    }
+
+    fun markShared(ids: Set<Long>, shared: Boolean) {
+        viewModelScope.launch { repo.setShared(ids, shared) }
+    }
+
+    fun recategorize(ids: Set<Long>, category: Category) {
+        viewModelScope.launch { repo.setCategory(ids, category) }
+    }
+
+    fun deleteMany(ids: Set<Long>) {
+        viewModelScope.launch { repo.deleteMany(ids) }
     }
 
     /** Exports the currently filtered rows to CSV and opens the system share sheet. */

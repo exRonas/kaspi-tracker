@@ -131,6 +131,18 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
+    fun markShared(ids: Set<Long>, shared: Boolean) {
+        viewModelScope.launch { repo.setShared(ids, shared) }
+    }
+
+    fun recategorize(ids: Set<Long>, category: Category) {
+        viewModelScope.launch { repo.setCategory(ids, category) }
+    }
+
+    fun deleteMany(ids: Set<Long>) {
+        viewModelScope.launch { repo.deleteMany(ids) }
+    }
+
     /**
      * Hours of unexplained silence from the listener, or null while it is
      * healthy. The threshold comes from the user's own push history, so a quiet

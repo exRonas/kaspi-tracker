@@ -1,6 +1,7 @@
 package com.kleinapps.kaspitracker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,13 +16,17 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.Transaction
@@ -44,6 +49,8 @@ fun EditTransactionSheet(
     var account by remember { mutableStateOf(tx.account ?: "") }
     var type by remember { mutableStateOf(tx.type) }
     var category by remember { mutableStateOf(tx.category) }
+    var shared by remember { mutableStateOf(tx.shared) }
+    var excluded by remember { mutableStateOf(tx.excludedFromStats) }
 
     // Editing an existing amount is where "/2" and "-800" earn their keep: the
     // stored amount is the base they continue from.
@@ -111,6 +118,19 @@ fun EditTransactionSheet(
                 onSelect = { category = it }
             )
 
+            SwitchRow(
+                title = "Общее",
+                subtitle = "Трата на вас двоих — попадёт в «Вместе»",
+                checked = shared,
+                onCheckedChange = { shared = it }
+            )
+            SwitchRow(
+                title = "Не учитывать в статистике",
+                subtitle = "Остаётся в истории, но не входит в суммы",
+                checked = excluded,
+                onCheckedChange = { excluded = it }
+            )
+
             Spacer(Modifier.height(4.dp))
             Button(
                 onClick = {
@@ -120,7 +140,9 @@ fun EditTransactionSheet(
                             merchant = merchant.takeIf { it.isNotBlank() },
                             account = account.takeIf { it.isNotBlank() },
                             type = type,
-                            category = category ?: Category.OTHER
+                            category = category ?: Category.OTHER,
+                            shared = shared,
+                            excludedFromStats = excluded
                         )
                     )
                 },
@@ -135,3 +157,46 @@ fun EditTransactionSheet(
 
 private fun formatEditable(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
+/** A labelled switch whose whole row is the touch target. */
+@Composable
+fun SwitchRow(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            // The theme's default "off" track is too faint to read as a control.
+            colors = SwitchDefaults.colors(
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
+    }
+}

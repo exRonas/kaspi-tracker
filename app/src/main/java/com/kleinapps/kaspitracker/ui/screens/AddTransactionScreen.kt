@@ -35,6 +35,7 @@ import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.TxType
 import com.kleinapps.kaspitracker.ui.components.AmountField
 import com.kleinapps.kaspitracker.ui.components.CategoryPickerGrid
+import com.kleinapps.kaspitracker.ui.components.SwitchRow
 import com.kleinapps.kaspitracker.ui.components.label
 import com.kleinapps.kaspitracker.util.AmountExpression
 import java.text.SimpleDateFormat
@@ -52,6 +53,7 @@ fun AddTransactionScreen(
     var merchant by remember { mutableStateOf("") }
     var type by remember { mutableStateOf(TxType.PURCHASE) }
     var category by remember { mutableStateOf<Category?>(null) }
+    var shared by remember { mutableStateOf(false) }
     var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -115,6 +117,13 @@ fun AddTransactionScreen(
             category = if (category == picked) null else picked
         })
 
+        SwitchRow(
+            title = "Общее",
+            subtitle = "Трата на вас двоих — попадёт в «Вместе»",
+            checked = shared,
+            onCheckedChange = { shared = it }
+        )
+
         Text(
             text = "Дата и время",
             style = MaterialTheme.typography.titleMedium,
@@ -136,6 +145,7 @@ fun AddTransactionScreen(
                     type = type,
                     merchant = merchant,
                     category = category,
+                    shared = shared,
                     timestamp = timestamp,
                     onDone = onSaved
                 )

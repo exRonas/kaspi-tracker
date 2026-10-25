@@ -19,12 +19,13 @@ class AddTransactionViewModel(app: Application) : AndroidViewModel(app) {
         type: TxType,
         merchant: String?,
         category: Category?,
+        shared: Boolean,
         timestamp: Long,
         onDone: () -> Unit
     ) {
         viewModelScope.launch {
             val cleanMerchant = merchant?.takeIf { it.isNotBlank() }
-            repo.insert(
+            val id = repo.insert(
                 Transaction(
                     timestamp = timestamp,
                     title = null,
@@ -34,12 +35,16 @@ class AddTransactionViewModel(app: Application) : AndroidViewModel(app) {
                     merchant = cleanMerchant,
                     source = TxSource.MANUAL,
                     // Null lets the classifier (and learned rules) decide.
-                    category = category
+                    category = category,
+                    shared = shared
                 )
             )
             // Picking a category by hand teaches it for this merchant, exactly
             // like answering in the review queue does.
             if (category != null) repo.learn(cleanMerchant, category)
+            // Same for "shared": marking it here teaches the merchant. Leaving
+            // it off teaches nothing, so an existing hint is not overwritten.
+            if (shared) repo.setShared(listOf(id), true)
             onDone()
         }
     }
