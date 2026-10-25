@@ -1,17 +1,12 @@
 package com.kleinapps.kaspitracker
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
@@ -37,25 +32,10 @@ class MainActivity : ComponentActivity() {
 
     private var pendingReceiptUris by mutableStateOf<List<Uri>>(emptyList())
 
-    /**
-     * Budget warnings are posted as normal notifications, which Android 13+
-     * gates behind a runtime permission. Asked once on start; declining just
-     * means no warnings.
-     */
-    private val requestNotifications =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         pendingReceiptUris = extractReceiptUris(intent)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
 
         setContent {
             KaspiTrackerTheme {

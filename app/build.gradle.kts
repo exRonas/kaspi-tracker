@@ -94,4 +94,6 @@ dependencies {
     // Real org.json for backup tests — the stubbed android.jar used by unit
     // tests returns default values for every method instead of parsing.
     testImplementation("org.json:json:20240303")
+    // Real SQLite on the JVM, to run Room migrations against a copy of the old schema.
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.3")
 }

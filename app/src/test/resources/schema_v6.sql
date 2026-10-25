@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS `transactions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `title` TEXT, `rawText` TEXT NOT NULL, `amount` REAL, `type` TEXT NOT NULL, `merchant` TEXT, `currency` TEXT NOT NULL, `source` TEXT NOT NULL, `category` TEXT, `account` TEXT, `dedupKey` TEXT, `balance` REAL, `excludedFromStats` INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS `budgets` (`category` TEXT NOT NULL, `monthlyLimit` REAL NOT NULL, PRIMARY KEY(`category`));
+CREATE TABLE IF NOT EXISTS `category_rules` (`merchantKey` TEXT NOT NULL, `category` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`merchantKey`));

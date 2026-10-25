@@ -6,7 +6,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,7 +33,6 @@ import com.kleinapps.kaspitracker.ui.screens.AddTransactionScreen
 import com.kleinapps.kaspitracker.ui.screens.AnalyticsScreen
 import com.kleinapps.kaspitracker.ui.screens.BackupScreen
 import com.kleinapps.kaspitracker.ui.screens.BatchImportScreen
-import com.kleinapps.kaspitracker.ui.screens.BudgetsScreen
 import com.kleinapps.kaspitracker.ui.screens.CategorizeScreen
 import com.kleinapps.kaspitracker.ui.screens.CategoryRulesScreen
 import com.kleinapps.kaspitracker.ui.screens.SubscriptionsScreen
@@ -57,7 +55,6 @@ object Routes {
 
     fun history(category: Category, from: Long, to: Long, period: String): String =
         "history?category=${category.name}&from=$from&to=$to&period=${Uri.encode(period)}"
-    const val BUDGETS = "budgets"
     const val RAW_LOG = "raw_log"
     const val ADD_TRANSACTION = "add_transaction"
     const val CATEGORIZE = "categorize"
@@ -72,8 +69,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private val TABS = listOf(
     Tab(Routes.HOME, "Обзор", Icons.Filled.Home),
     Tab(Routes.ANALYTICS, "Аналитика", Icons.Filled.PieChart),
-    Tab(Routes.HISTORY, "История", Icons.Filled.ReceiptLong),
-    Tab(Routes.BUDGETS, "Бюджеты", Icons.Filled.Savings)
+    Tab(Routes.HISTORY, "История", Icons.Filled.ReceiptLong)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,7 +91,6 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
         Routes.BATCH_IMPORT -> "Импорт чеков" to true
         Routes.ANALYTICS -> "Аналитика" to false
         Routes.HISTORY -> "История" to false
-        Routes.BUDGETS -> "Бюджеты" to false
         else -> "" to false
     }
 
@@ -195,7 +190,6 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
                     initialPeriodLabel = arguments?.getString("period")
                 )
             }
-            composable(Routes.BUDGETS) { BudgetsScreen() }
             composable(Routes.RAW_LOG) { RawLogScreen() }
             composable(Routes.ADD_TRANSACTION) {
                 AddTransactionScreen(onSaved = { navController.popBackStack() })

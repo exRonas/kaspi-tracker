@@ -24,7 +24,7 @@ class TransactionRepositoryTest {
     fun setUp() {
         dao = FakeTransactionDao()
         ruleDao = FakeCategoryRuleDao()
-        repo = TransactionRepository(dao, FakeBudgetDao(), ruleDao)
+        repo = fakeRepository(dao, ruleDao)
     }
 
     private fun notification(
@@ -297,45 +297,6 @@ class TransactionRepositoryTest {
         assertEquals(2, dao.rows.value.size)
     }
 
-    // --- budget alerts -----------------------------------------------------
-
-    @Test
-    fun `crossing a budget is reported once per insert with the running total`() = runTest {
-        val seen = mutableListOf<Pair<Category, Double>>()
-        val budgets = FakeBudgetDao()
-        budgets.upsert(Budget(Category.GROCERIES, 1_000.0))
-        val watched = TransactionRepository(dao, budgets, ruleDao) { budget, spent, _ ->
-            seen += budget.category to spent
-        }
-
-        watched.insert(manual("Small", amount = 400.0).copy(timestamp = System.currentTimeMillis()))
-        watched.insert(manual("Small", amount = 500.0).copy(timestamp = System.currentTimeMillis()))
-
-        assertEquals(listOf(Category.GROCERIES to 400.0, Category.GROCERIES to 900.0), seen)
-    }
-
-    @Test
-    fun `a category with no budget is never reported`() = runTest {
-        var calls = 0
-        val watched = TransactionRepository(dao, FakeBudgetDao(), ruleDao) { _, _, _ -> calls++ }
-        watched.insert(manual("Small", amount = 400.0).copy(timestamp = System.currentTimeMillis()))
-        assertEquals(0, calls)
-    }
-
-    @Test
-    fun `income never triggers a budget alert`() = runTest {
-        var calls = 0
-        val budgets = FakeBudgetDao()
-        budgets.upsert(Budget(Category.GROCERIES, 100.0))
-        val watched = TransactionRepository(dao, budgets, ruleDao) { _, _, _ -> calls++ }
-
-        watched.insert(
-            manual("Кристина П.", amount = 50_000.0, type = TxType.TRANSFER_IN)
-                .copy(timestamp = System.currentTimeMillis())
-        )
-        assertEquals(0, calls)
-    }
-
     // --- transfers between own cards ---------------------------------------
 
     private fun cardTx(
@@ -373,29 +334,6 @@ class TransactionRepositoryTest {
         assertFalse(purchase.excludedFromStats)
     }
 
-    @Test
-    fun `an excluded transfer never triggers a budget alert`() = runTest {
-        var calls = 0
-        val budgets = FakeBudgetDao()
-        budgets.upsert(Budget(Category.TRANSFER, 1_000.0))
-        val watched = TransactionRepository(dao, budgets, ruleDao) { _, _, _ -> calls++ }
-
-        val now = System.currentTimeMillis()
-        watched.insert(
-            cardTx(50_000.0, TxType.TRANSFER_OUT, "Kaspi Gold", now)
-                .copy(category = Category.TRANSFER)
-        )
-        watched.insert(
-            cardTx(50_000.0, TxType.TRANSFER_IN, "Kaspi Депозит", now + 3_000)
-                .copy(category = Category.TRANSFER)
-        )
-
-        // The outgoing leg fires once before its pair arrives and marks it
-        // excluded; what matters is that the excluded row is not counted again.
-        assertTrue(calls <= 1)
-        assertTrue(dao.rows.value.all { it.excludedFromStats })
-    }
-
     // --- backup ------------------------------------------------------------
 
     @Test
@@ -405,7 +343,7 @@ class TransactionRepositoryTest {
         repo.learn("Lavka Pulman", Category.CAFE)
         val json = repo.exportBackup()
 
-        val fresh = TransactionRepository(FakeTransactionDao(), FakeBudgetDao(), FakeCategoryRuleDao())
+        val fresh = fakeRepository()
         val first = fresh.importBackup(json)
         val second = fresh.importBackup(json)
 
@@ -415,12 +353,24 @@ class TransactionRepositoryTest {
     }
 
     @Test
+    fun `restoring a row whose uuid already exists is skipped`() = runTest {
+        val id = repo.insert(manual("Magnum"))
+        val stored = dao.getById(id)!!
+        val json = Backup.encode(
+            Backup.Content(listOf(stored.copy(rawText = "изменён")), emptyList())
+        )
+
+        assertEquals(0, repo.importBackup(json).added)
+        assertEquals(1, dao.rows.value.size)
+    }
+
+    @Test
     fun `a backup carries the learned rules over`() = runTest {
         repo.learn("Lavka Pulman", Category.CAFE)
         val json = repo.exportBackup()
 
         val rules = FakeCategoryRuleDao()
-        val fresh = TransactionRepository(FakeTransactionDao(), FakeBudgetDao(), rules)
+        val fresh = fakeRepository(ruleDao = rules)
         fresh.importBackup(json)
 
         assertEquals(Category.CAFE, rules.rules.value.single().category)

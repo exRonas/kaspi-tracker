@@ -15,12 +15,7 @@ enum class Category(val label: String) {
     EDUCATION("Образование"),
     TRANSFER("Переводы"),
     INCOME("Доходы"),
-    OTHER("Прочее");
-
-    companion object {
-        /** Categories that make sense as spending budgets (everything except income). */
-        val budgetable: List<Category> = entries.filter { it != INCOME }
-    }
+    OTHER("Прочее")
 }
 
 /**

@@ -87,7 +87,7 @@ class BackupViewModel(app: Application) : AndroidViewModel(app) {
                 repo.importBackup(json)
             }.onSuccess { report ->
                 _status.value = "Добавлено операций: ${report.added}, " +
-                    "уже было: ${report.skipped}. Правил: ${report.rules}, бюджетов: ${report.budgets}."
+                    "уже было: ${report.skipped}. Правил: ${report.rules}."
             }.onFailure { _status.value = "Не удалось восстановить: ${it.message}" }
         }
     }
@@ -133,7 +133,7 @@ fun BackupScreen(viewModel: BackupViewModel = viewModel()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionHeader(title = "Что попадает в бэкап")
                 Text(
-                    text = "Все операции, месячные бюджеты и выученные правила категорий — " +
+                    text = "Все операции и выученные правила категорий — " +
                         "одним JSON-файлом.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

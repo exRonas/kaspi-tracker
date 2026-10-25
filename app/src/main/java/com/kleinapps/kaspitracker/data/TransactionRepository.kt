@@ -2,29 +2,20 @@ package com.kleinapps.kaspitracker.data
 
 import android.content.Context
 import com.kleinapps.kaspitracker.parser.KaspiNotificationParser
-import com.kleinapps.kaspitracker.service.BudgetAlerts
-import com.kleinapps.kaspitracker.util.startOfMonth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.Calendar
-
-/**
- * Told about the running total of a budgeted category right after money was
- * recorded in it. Kept as an interface so the data layer stays free of Android
- * notification APIs (and so tests can assert on it).
- */
-fun interface BudgetWatcher {
-    fun onSpendingRecorded(budget: Budget, spentThisMonth: Double, monthKey: String)
-}
 
 /** Thin wrapper over the DAOs. Single source of truth for the whole app. */
 class TransactionRepository(
     private val dao: TransactionDao,
-    private val budgetDao: BudgetDao,
     private val ruleDao: CategoryRuleDao,
-    private val budgetWatcher: BudgetWatcher? = null
+    private val sharedRuleDao: SharedRuleDao,
+    private val pendingDeleteDao: PendingDeleteDao,
+    private val partnerDao: PartnerTransactionDao,
+    /** Whether new operations inherit the merchant's last shared/own choice. */
+    private val sharedHintsEnabled: () -> Boolean = { true }
 ) {
 
     /**
@@ -91,7 +82,6 @@ class TransactionRepository(
         val stored = autoCategorize(transaction)
         val id = dao.insert(stored)
         markSelfTransfers()
-        reportBudget(stored)
         return id
     }
 
@@ -116,10 +106,7 @@ class TransactionRepository(
             return@withLock null
         }
         val stored = autoCategorize(transaction)
-        dao.insert(stored).also {
-            markSelfTransfers()
-            reportBudget(stored)
-        }
+        dao.insert(stored).also { markSelfTransfers() }
     }
 
     suspend fun findDuplicateNotification(dedupKey: String, timestamp: Long): Transaction? =
@@ -168,7 +155,7 @@ class TransactionRepository(
             return@withLock null
         }
         val stored = autoCategorize(transaction)
-        dao.insert(stored).also { reportBudget(stored) }
+        dao.insert(stored)
     }
 
     /**
@@ -288,35 +275,6 @@ class TransactionRepository(
             }
     }
 
-    // Budgets
-    fun observeBudgets(): Flow<List<Budget>> = budgetDao.observeAll()
-
-    suspend fun setBudget(budget: Budget) = budgetDao.upsert(budget)
-
-    suspend fun removeBudget(budget: Budget) = budgetDao.delete(budget)
-
-    /**
-     * Hands the category's running month total to the [budgetWatcher] whenever
-     * money lands in a category that has a limit set.
-     */
-    private suspend fun reportBudget(tx: Transaction) {
-        val watcher = budgetWatcher ?: return
-        val category = tx.category ?: return
-        if (!tx.type.isSpending || tx.amount == null || tx.excludedFromStats) return
-
-        val monthStart = startOfMonth()
-        if (tx.timestamp < monthStart) return
-
-        val budget = budgetDao.getAllOnce().firstOrNull { it.category == category } ?: return
-        val spent = dao.sumSpentInCategory(category, monthStart, Long.MAX_VALUE)
-        watcher.onSpendingRecorded(budget, spent, monthKey(monthStart))
-    }
-
-    private fun monthKey(monthStart: Long): String {
-        val calendar = Calendar.getInstance().apply { timeInMillis = monthStart }
-        return "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.MONTH) + 1}"
-    }
-
     private suspend fun autoCategorize(tx: Transaction): Transaction =
         if (tx.category != null) tx
         else tx.copy(
@@ -328,37 +286,39 @@ class TransactionRepository(
     suspend fun exportBackup(): String = Backup.encode(
         Backup.Content(
             transactions = dao.getAllOnce(),
-            budgets = budgetDao.getAllOnce(),
             rules = ruleDao.getAll()
         )
     )
 
     /**
      * Merges a backup into the current database: operations already present are
-     * skipped, so restoring the same file twice changes nothing. Budgets and
-     * learned rules are overwritten by the backup's version.
+     * skipped, so restoring the same file twice changes nothing. Learned rules
+     * are overwritten by the backup's version.
      */
     suspend fun importBackup(json: String): Backup.RestoreReport {
         val content = Backup.decode(json)
-        val known = dao.getAllOnce().map(Backup::identityOf).toHashSet()
+        val existing = dao.getAllOnce()
+        val known = existing.map(Backup::identityOf).toHashSet()
+        // An operation edited since the backup was made no longer matches its
+        // old fingerprint, but it is still the same operation.
+        val knownUuids = existing.map { it.uuid }.toHashSet()
 
         var added = 0
         var skipped = 0
         content.transactions.forEach { tx ->
-            if (!known.add(Backup.identityOf(tx))) {
+            if (tx.uuid in knownUuids || !known.add(Backup.identityOf(tx))) {
                 skipped++
             } else {
                 dao.insert(tx)
+                knownUuids += tx.uuid
                 added++
             }
         }
-        content.budgets.forEach { budgetDao.upsert(it) }
         content.rules.forEach { ruleDao.upsert(it) }
 
         return Backup.RestoreReport(
             added = added,
             skipped = skipped,
-            budgets = content.budgets.size,
             rules = content.rules.size
         )
     }
@@ -383,14 +343,12 @@ class TransactionRepository(
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
                     val db = AppDatabase.getInstance(context)
-                    val appContext = context.applicationContext
                     TransactionRepository(
                         dao = db.transactionDao(),
-                        budgetDao = db.budgetDao(),
                         ruleDao = db.categoryRuleDao(),
-                        budgetWatcher = { budget, spent, monthKey ->
-                            BudgetAlerts.notifyIfNeeded(appContext, budget, spent, monthKey)
-                        }
+                        sharedRuleDao = db.sharedRuleDao(),
+                        pendingDeleteDao = db.pendingDeleteDao(),
+                        partnerDao = db.partnerTransactionDao()
                     ).also { INSTANCE = it }
                 }
             }

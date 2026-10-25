@@ -1,7 +1,9 @@
 package com.kleinapps.kaspitracker.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 /** Operation type derived from the notification text. */
 enum class TxType {
@@ -30,7 +32,7 @@ enum class TxSource {
  * [amount] / [TxType.UNKNOWN] so nothing is ever lost — the Raw Log screen
  * surfaces these for tuning the parser.
  */
-@Entity(tableName = "transactions")
+@Entity(tableName = "transactions", indices = [Index(value = ["uuid"], unique = true)])
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val timestamp: Long,
@@ -64,5 +66,18 @@ data class Transaction(
      * between their own cards (Kaspi reports those as an expense *and* an
      * income), refunds, and rows corrected by hand.
      */
-    val excludedFromStats: Boolean = false
+    val excludedFromStats: Boolean = false,
+    /**
+     * Stable identity of the operation outside this phone. The row id is local;
+     * this is what the partner's copy and the cloud row are keyed on.
+     */
+    val uuid: String = UUID.randomUUID().toString(),
+    /** Spent on both partners ("общее") rather than on the owner alone. */
+    val shared: Boolean = false,
+    /**
+     * [syncHash] of the version last sent to the cloud, null if never sent.
+     * A row whose current hash differs is due for upload — so no write path
+     * has to remember to flag its changes.
+     */
+    val syncedHash: Int? = null
 )

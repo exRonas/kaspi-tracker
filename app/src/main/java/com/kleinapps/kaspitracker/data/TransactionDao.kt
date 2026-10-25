@@ -29,6 +29,17 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: Long): Transaction?
 
+    @Query("SELECT * FROM transactions WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<Transaction>
+
+    /** Records which version of a row the cloud now holds. */
+    @Query("UPDATE transactions SET syncedHash = :hash WHERE uuid = :uuid")
+    suspend fun markSynced(uuid: String, hash: Int)
+
+    /** Forgets what was sent — after unpairing everything counts as unsent again. */
+    @Query("UPDATE transactions SET syncedHash = NULL")
+    suspend fun clearSyncState()
+
     /** Every row, once — used by backup export and restore matching. */
     @Query("SELECT * FROM transactions ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<Transaction>
@@ -196,19 +207,6 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE amount IS NOT NULL ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<Transaction>>
-
-    /** Spent in one category this month — the number budget alerts compare against. */
-    @Query(
-        """
-        SELECT COALESCE(SUM(amount), 0) FROM transactions
-        WHERE amount IS NOT NULL
-          AND excludedFromStats = 0
-          AND type IN ('PURCHASE', 'TRANSFER_OUT')
-          AND category = :category
-          AND timestamp BETWEEN :from AND :to
-        """
-    )
-    suspend fun sumSpentInCategory(category: Category, from: Long, to: Long): Double
 
     /** Spending operations (purchases + outgoing transfers) within a time range. */
     @Query(

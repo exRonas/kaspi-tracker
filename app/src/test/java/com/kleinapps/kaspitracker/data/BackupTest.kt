@@ -1,7 +1,9 @@
 package com.kleinapps.kaspitracker.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupTest {
@@ -25,7 +27,6 @@ class BackupTest {
     fun `a backup survives the round trip`() {
         val content = Backup.Content(
             transactions = listOf(transaction),
-            budgets = listOf(Budget(Category.GROCERIES, 60_000.0)),
             rules = listOf(CategoryRule("inmart", Category.GROCERIES, 123L))
         )
         val restored = Backup.decode(Backup.encode(content))
@@ -43,7 +44,6 @@ class BackupTest {
         // Row ids are local to a device and deliberately not carried over.
         assertEquals(0L, tx.id)
 
-        assertEquals(Budget(Category.GROCERIES, 60_000.0), restored.budgets.single())
         assertEquals(CategoryRule("inmart", Category.GROCERIES, 123L), restored.rules.single())
     }
 
@@ -54,7 +54,7 @@ class BackupTest {
             category = null, account = null, dedupKey = null, balance = null
         )
         val tx = Backup.decode(
-            Backup.encode(Backup.Content(listOf(bare), emptyList(), emptyList()))
+            Backup.encode(Backup.Content(listOf(bare), emptyList()))
         ).transactions.single()
 
         assertNull(tx.title)
@@ -91,5 +91,51 @@ class BackupTest {
     fun `identity separates two payments of the same size`() {
         val later = transaction.copy(timestamp = transaction.timestamp + 60_000)
         assert(Backup.identityOf(transaction) != Backup.identityOf(later))
+    }
+
+    @Test
+    fun `uuid and shared survive a round trip`() {
+        val shared = transaction.copy(shared = true)
+        val tx = Backup.decode(
+            Backup.encode(Backup.Content(listOf(shared), emptyList()))
+        ).transactions.single()
+
+        assertEquals(shared.uuid, tx.uuid)
+        assertTrue(tx.shared)
+    }
+
+    @Test
+    fun `sync state is never restored`() {
+        val sent = transaction.copy(syncedHash = 7)
+        val tx = Backup.decode(
+            Backup.encode(Backup.Content(listOf(sent), emptyList()))
+        ).transactions.single()
+
+        assertNull(tx.syncedHash)
+    }
+
+    @Test
+    fun `old backup without uuid gets a fresh uuid per row`() {
+        val json = """
+            {"version":1,"transactions":[
+              {"timestamp":1,"rawText":"a","type":"PURCHASE","source":"MANUAL"},
+              {"timestamp":2,"rawText":"b","type":"PURCHASE","source":"MANUAL"}
+            ]}
+        """.trimIndent()
+        val (first, second) = Backup.decode(json).transactions
+
+        assertEquals(36, first.uuid.length)
+        assertNotEquals(first.uuid, second.uuid)
+    }
+
+    @Test
+    fun `old backup with budgets still restores`() {
+        val json = """
+            {"version":1,"transactions":[],
+             "budgets":[{"category":"GROCERIES","monthlyLimit":60000}],
+             "rules":[{"merchantKey":"inmart","category":"GROCERIES","updatedAt":1}]}
+        """.trimIndent()
+
+        assertEquals("inmart", Backup.decode(json).rules.single().merchantKey)
     }
 }

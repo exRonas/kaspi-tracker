@@ -4,7 +4,6 @@
     <!-- Needed to re-bind the listener after device reboot on some OEM ROMs. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Budget warnings ("Бюджет заканчивается: Продукты"). Android 13+ asks at runtime. -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".KaspiTrackerApp"

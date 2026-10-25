@@ -2,9 +2,10 @@ package com.kleinapps.kaspitracker.data
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 /**
- * Everything the app knows, as plain JSON — operations, budgets and the learned
+ * Everything the app knows, as plain JSON — operations and the learned
  * category rules.
  *
  * The format is deliberately boring (a flat object per row) so a backup made by
@@ -18,14 +19,12 @@ object Backup {
 
     data class Content(
         val transactions: List<Transaction>,
-        val budgets: List<Budget>,
         val rules: List<CategoryRule>
     )
 
     data class RestoreReport(
         val added: Int,
         val skipped: Int,
-        val budgets: Int,
         val rules: Int
     )
 
@@ -38,18 +37,6 @@ object Backup {
             "transactions",
             JSONArray().apply {
                 content.transactions.forEach { put(encodeTransaction(it)) }
-            }
-        )
-        root.put(
-            "budgets",
-            JSONArray().apply {
-                content.budgets.forEach {
-                    put(
-                        JSONObject()
-                            .put("category", it.category.name)
-                            .put("monthlyLimit", it.monthlyLimit)
-                    )
-                }
             }
         )
         root.put(
@@ -72,10 +59,6 @@ object Backup {
         val root = JSONObject(json)
         return Content(
             transactions = root.optJSONArray("transactions").map { decodeTransaction(it) },
-            budgets = root.optJSONArray("budgets").mapNotNull { obj ->
-                val category = obj.optString("category").toCategoryOrNull() ?: return@mapNotNull null
-                Budget(category, obj.optDouble("monthlyLimit", 0.0))
-            },
             rules = root.optJSONArray("rules").mapNotNull { obj ->
                 val key = obj.optString("merchantKey").takeIf { it.isNotBlank() }
                     ?: return@mapNotNull null
@@ -99,6 +82,8 @@ object Backup {
         put("dedupKey", tx.dedupKey ?: JSONObject.NULL)
         put("balance", tx.balance ?: JSONObject.NULL)
         put("excludedFromStats", tx.excludedFromStats)
+        put("uuid", tx.uuid)
+        put("shared", tx.shared)
     }
 
     private fun decodeTransaction(obj: JSONObject) = Transaction(
@@ -115,7 +100,10 @@ object Backup {
         account = obj.optStringOrNull("account"),
         dedupKey = obj.optStringOrNull("dedupKey"),
         balance = obj.optDoubleOrNull("balance"),
-        excludedFromStats = obj.optBoolean("excludedFromStats", false)
+        excludedFromStats = obj.optBoolean("excludedFromStats", false),
+        // Backups made before syncing existed carry no uuid: each row gets a new one.
+        uuid = obj.optStringOrNull("uuid") ?: UUID.randomUUID().toString(),
+        shared = obj.optBoolean("shared", false)
     )
 
     /**
