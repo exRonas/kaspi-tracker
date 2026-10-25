@@ -170,17 +170,6 @@ fun AnalyticsScreen(
             }
         }
 
-        if (state.byWeekday.any { it.second > 0 }) {
-            item {
-                SectionCard(title = "По дням недели") {
-                    BarChart(
-                        bars = state.byWeekday.map { BarEntry(it.first, it.second) },
-                        barColor = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-
         item { Spacer(Modifier.height(24.dp)) }
     }
 }

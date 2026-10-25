@@ -7,7 +7,8 @@ import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.MerchantKey
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TransactionRepository
-import com.kleinapps.kaspitracker.data.TxType
+import com.kleinapps.kaspitracker.data.isCountedIncome
+import com.kleinapps.kaspitracker.data.isCountedSpending
 import com.kleinapps.kaspitracker.util.startOfDay
 import com.kleinapps.kaspitracker.util.startOfMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,7 +35,6 @@ data class AnalyticsUiState(
     val income: Double = 0.0,
     val byCategory: List<CategorySum> = emptyList(),
     val topMerchants: List<MerchantSum> = emptyList(),
-    val byWeekday: List<Pair<String, Double>> = emptyList(),
     /** Current month total vs previous month total (for the comparison card). */
     val thisMonth: Double = 0.0,
     val prevMonth: Double = 0.0,
@@ -71,23 +71,20 @@ class AnalyticsViewModel(app: Application) : AndroidViewModel(app) {
             AnalyticsPeriod.ALL -> 0L to Long.MAX_VALUE
         }
 
-        val window = all.filter { it.amount != null && it.timestamp in from..to }
-        val spendings = window.filter { it.type.isSpending }
+        val window = all.filter { it.timestamp in from..to }
+        val spendings = window.filter { it.isCountedSpending }
 
         val monthSpent = all
-            .filter { it.amount != null && it.type.isSpending && it.timestamp >= monthStart }
+            .filter { it.isCountedSpending && it.timestamp >= monthStart }
             .sumOf { it.amount ?: 0.0 }
         val prevMonthSpent = all
-            .filter {
-                it.amount != null && it.type.isSpending &&
-                    it.timestamp in prevMonthStart until monthStart
-            }
+            .filter { it.isCountedSpending && it.timestamp in prevMonthStart until monthStart }
             .sumOf { it.amount ?: 0.0 }
 
         return AnalyticsUiState(
             period = period,
             spent = spendings.sumOf { it.amount ?: 0.0 },
-            income = window.filter { it.type == TxType.TRANSFER_IN }.sumOf { it.amount ?: 0.0 },
+            income = window.filter { it.isCountedIncome }.sumOf { it.amount ?: 0.0 },
             byCategory = spendings
                 .groupBy { it.category ?: Category.OTHER }
                 .map { (category, txs) -> CategorySum(category, txs.sumOf { it.amount ?: 0.0 }) }
@@ -106,24 +103,10 @@ class AnalyticsViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 .sortedByDescending { it.amount }
                 .take(5),
-            byWeekday = buildWeekdays(spendings),
             thisMonth = monthSpent,
             prevMonth = prevMonthSpent,
             from = from,
             to = to
         )
-    }
-
-    /** Average spending per weekday (Mon..Sun order). */
-    private fun buildWeekdays(spendings: List<Transaction>): List<Pair<String, Double>> {
-        val labels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
-        val sums = DoubleArray(7)
-        spendings.forEach { tx ->
-            val cal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
-            // Calendar.MONDAY == 2 … SUNDAY == 1 → map to 0..6 with Monday first.
-            val index = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
-            sums[index] += tx.amount ?: 0.0
-        }
-        return labels.mapIndexed { i, label -> label to sums[i] }
     }
 }

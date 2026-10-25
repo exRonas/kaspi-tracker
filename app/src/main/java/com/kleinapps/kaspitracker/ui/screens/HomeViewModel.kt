@@ -7,6 +7,8 @@ import com.kleinapps.kaspitracker.data.AccountBalance
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TransactionRepository
+import com.kleinapps.kaspitracker.data.isCountedIncome
+import com.kleinapps.kaspitracker.data.isCountedSpending
 import com.kleinapps.kaspitracker.service.ListenerWatchdog
 import com.kleinapps.kaspitracker.service.NotificationHealth
 import com.kleinapps.kaspitracker.util.MonthForecast
@@ -95,8 +97,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val todayStart = startOfDay(now)
         val monthStart = startOfMonth(now)
         val weekStart = startOfDay(now, daysAgo = 6)
-        val spendings = window.filter { it.amount != null && it.type.isSpending }
-        val incomes = window.filter { it.amount != null && it.type == com.kleinapps.kaspitracker.data.TxType.TRANSFER_IN }
+        val spendings = window.filter { it.isCountedSpending }
+        val incomes = window.filter { it.isCountedIncome }
 
         val monthSpendings = spendings.filter { it.timestamp >= monthStart }
         // Same number of days into the previous month, so the comparison is
