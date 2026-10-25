@@ -18,13 +18,15 @@ class TransactionRepositoryTest {
 
     private lateinit var dao: FakeTransactionDao
     private lateinit var ruleDao: FakeCategoryRuleDao
+    private lateinit var pendingDeletes: FakePendingDeleteDao
     private lateinit var repo: TransactionRepository
 
     @Before
     fun setUp() {
         dao = FakeTransactionDao()
         ruleDao = FakeCategoryRuleDao()
-        repo = fakeRepository(dao, ruleDao)
+        pendingDeletes = FakePendingDeleteDao()
+        repo = fakeRepository(dao, ruleDao, pendingDeleteDao = pendingDeletes)
     }
 
     private fun notification(
@@ -374,6 +376,121 @@ class TransactionRepositoryTest {
         fresh.importBackup(json)
 
         assertEquals(Category.CAFE, rules.rules.value.single().category)
+    }
+
+    // --- shared / own -------------------------------------------------------
+
+    @Test
+    fun `marking several rows shared updates all of them`() = runTest {
+        val first = repo.insert(manual("Magnum"))
+        val second = repo.insert(manual("Coffee Boom"))
+        val untouched = repo.insert(manual("Wildberries"))
+
+        repo.setShared(listOf(first, second), true)
+
+        assertTrue(dao.getById(first)!!.shared)
+        assertTrue(dao.getById(second)!!.shared)
+        assertFalse(dao.getById(untouched)!!.shared)
+    }
+
+    @Test
+    fun `marking shared teaches the merchant and the next purchase arrives shared`() = runTest {
+        val id = repo.insert(manual("Magnum"))
+        repo.setShared(listOf(id), true)
+
+        val next = repo.insert(manual("MAGNUM"))
+
+        assertTrue(dao.getById(next)!!.shared)
+    }
+
+    @Test
+    fun `a push from a shared merchant arrives shared`() = runTest {
+        val id = repo.insert(manual("SMALL"))
+        repo.setShared(listOf(id), true)
+
+        val pushId = repo.insertNotification(notification("Покупка: 1 580 ₸\nSMALL\nДоступно: 5 000 ₸"))
+
+        assertTrue(dao.getById(pushId!!)!!.shared)
+    }
+
+    @Test
+    fun `marking back as own teaches the merchant too`() = runTest {
+        val id = repo.insert(manual("Magnum"))
+        repo.setShared(listOf(id), true)
+        repo.setShared(listOf(id), false)
+
+        val next = repo.insert(manual("Magnum"))
+
+        assertFalse(dao.getById(next)!!.shared)
+    }
+
+    @Test
+    fun `editing the shared flag in the sheet teaches the merchant`() = runTest {
+        val id = repo.insert(manual("Coffee Boom"))
+        repo.update(dao.getById(id)!!.copy(shared = true))
+
+        val next = repo.insert(manual("Coffee Boom"))
+
+        assertTrue(dao.getById(next)!!.shared)
+    }
+
+    @Test
+    fun `hints switched off leave new rows own`() = runTest {
+        val quiet = fakeRepository(dao, ruleDao, sharedHintsEnabled = { false })
+        val id = quiet.insert(manual("Magnum"))
+        quiet.setShared(listOf(id), true)
+
+        val next = quiet.insert(manual("Magnum"))
+
+        assertFalse(dao.getById(next)!!.shared)
+    }
+
+    @Test
+    fun `bulk category change learns each merchant`() = runTest {
+        val first = repo.insert(manual("Inmart"))
+        val second = repo.insert(manual("Lavka Pulman"))
+
+        repo.setCategory(listOf(first, second), Category.CAFE)
+
+        assertEquals(Category.CAFE, dao.getById(first)!!.category)
+        assertEquals(Category.CAFE, dao.getById(second)!!.category)
+        assertEquals(
+            setOf("inmart", "lavka pulman"),
+            ruleDao.rules.value.filter { it.category == Category.CAFE }.map { it.merchantKey }.toSet()
+        )
+    }
+
+    @Test
+    fun `deleting a synced row queues a remote delete`() = runTest {
+        val id = repo.insert(manual("Magnum"))
+        dao.update(dao.getById(id)!!.copy(syncedHash = 1))
+        val row = dao.getById(id)!!
+
+        repo.delete(row)
+
+        assertEquals(listOf(row.uuid), pendingDeletes.rows.value.map { it.uuid })
+    }
+
+    @Test
+    fun `deleting a never synced row queues nothing`() = runTest {
+        val id = repo.insert(manual("Magnum"))
+
+        repo.delete(dao.getById(id)!!)
+
+        assertTrue(pendingDeletes.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `deleteMany removes all selected rows and queues the synced ones`() = runTest {
+        val synced = repo.insert(manual("Magnum"))
+        dao.update(dao.getById(synced)!!.copy(syncedHash = 1))
+        val local = repo.insert(manual("Coffee Boom"))
+        val kept = repo.insert(manual("Wildberries"))
+
+        repo.deleteMany(listOf(synced, local))
+
+        assertEquals(listOf(kept), dao.rows.value.map { it.id })
+        assertEquals(1, pendingDeletes.rows.value.size)
     }
 
     // --- receipts ----------------------------------------------------------

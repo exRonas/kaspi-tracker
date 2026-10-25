@@ -79,7 +79,7 @@ class TransactionRepository(
     }
 
     suspend fun insert(transaction: Transaction): Long {
-        val stored = autoCategorize(transaction)
+        val stored = applyRules(transaction)
         val id = dao.insert(stored)
         markSelfTransfers()
         return id
@@ -105,7 +105,7 @@ class TransactionRepository(
             if (enriched != existing) dao.update(enriched)
             return@withLock null
         }
-        val stored = autoCategorize(transaction)
+        val stored = applyRules(transaction)
         dao.insert(stored).also { markSelfTransfers() }
     }
 
@@ -154,7 +154,7 @@ class TransactionRepository(
             dao.update(merged)
             return@withLock null
         }
-        val stored = autoCategorize(transaction)
+        val stored = applyRules(transaction)
         dao.insert(stored)
     }
 
@@ -170,6 +170,11 @@ class TransactionRepository(
         if (category != null && previous?.category != category) {
             learn(transaction.merchant, category)
         }
+        if (previous != null && previous.shared != transaction.shared) {
+            MerchantKey.of(transaction.merchant)?.let { key ->
+                sharedRuleDao.upsert(SharedRule(merchantKey = key, shared = transaction.shared))
+            }
+        }
     }
 
     /** Category picked from the review queue — same learning as [update]. */
@@ -178,7 +183,42 @@ class TransactionRepository(
         learn(transaction.merchant, category)
     }
 
-    suspend fun delete(transaction: Transaction) = dao.delete(transaction)
+    suspend fun delete(transaction: Transaction) {
+        dao.delete(transaction)
+        queueRemoteDelete(transaction)
+    }
+
+    /** Deletes the picked rows; the ones the cloud already has are queued for removal there. */
+    suspend fun deleteMany(ids: Collection<Long>) {
+        dao.getByIds(ids.toList()).forEach { delete(it) }
+    }
+
+    /**
+     * Marks the picked rows shared or own, and remembers that choice for each of
+     * their merchants so the next operation there arrives already marked.
+     */
+    suspend fun setShared(ids: Collection<Long>, shared: Boolean) {
+        val rows = dao.getByIds(ids.toList())
+        rows.filter { it.shared != shared }.forEach { dao.update(it.copy(shared = shared)) }
+        rows.mapNotNull { MerchantKey.of(it.merchant) }.distinct().forEach { key ->
+            sharedRuleDao.upsert(SharedRule(merchantKey = key, shared = shared))
+        }
+    }
+
+    /** The bulk version of picking a category in the edit sheet — learns the same way. */
+    suspend fun setCategory(ids: Collection<Long>, category: Category) {
+        val rows = dao.getByIds(ids.toList())
+        rows.forEach { dao.update(it.copy(category = category)) }
+        rows.map { it.merchant }.distinctBy { MerchantKey.of(it) }.forEach { learn(it, category) }
+    }
+
+    /**
+     * A row deleted before it ever reached the cloud needs nothing sent; one
+     * that did must be removed there too, or the partner keeps seeing it.
+     */
+    private suspend fun queueRemoteDelete(transaction: Transaction) {
+        if (transaction.syncedHash != null) pendingDeleteDao.insert(PendingDelete(transaction.uuid))
+    }
 
     suspend fun clearAll() = dao.clearAll()
 
@@ -275,11 +315,21 @@ class TransactionRepository(
             }
     }
 
-    private suspend fun autoCategorize(tx: Transaction): Transaction =
-        if (tx.category != null) tx
-        else tx.copy(
-            category = CategoryClassifier.classify(tx.merchant, tx.rawText, tx.type, ruleDao.getAll())
-        )
+    /**
+     * What the app already knows about a new row's merchant: its category, and
+     * — unless the user switched hints off — whether it is usually shared.
+     */
+    private suspend fun applyRules(tx: Transaction): Transaction {
+        val categorized =
+            if (tx.category != null) tx
+            else tx.copy(
+                category = CategoryClassifier.classify(tx.merchant, tx.rawText, tx.type, ruleDao.getAll())
+            )
+        if (categorized.shared || !sharedHintsEnabled()) return categorized
+        val key = MerchantKey.of(categorized.merchant) ?: return categorized
+        val hint = sharedRuleDao.getAll().firstOrNull { it.merchantKey == key } ?: return categorized
+        return categorized.copy(shared = hint.shared)
+    }
 
     // Backup / restore
 
@@ -343,12 +393,14 @@ class TransactionRepository(
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
                     val db = AppDatabase.getInstance(context)
+                    val appContext = context.applicationContext
                     TransactionRepository(
                         dao = db.transactionDao(),
                         ruleDao = db.categoryRuleDao(),
                         sharedRuleDao = db.sharedRuleDao(),
                         pendingDeleteDao = db.pendingDeleteDao(),
-                        partnerDao = db.partnerTransactionDao()
+                        partnerDao = db.partnerTransactionDao(),
+                        sharedHintsEnabled = { SharedHints.enabled(appContext) }
                     ).also { INSTANCE = it }
                 }
             }
