@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import android.net.Uri
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -39,9 +41,11 @@ import com.kleinapps.kaspitracker.ui.screens.SubscriptionsScreen
 import com.kleinapps.kaspitracker.ui.screens.HistoryScreen
 import com.kleinapps.kaspitracker.ui.screens.HomeScreen
 import com.kleinapps.kaspitracker.ui.screens.RawLogScreen
+import com.kleinapps.kaspitracker.ui.screens.StatsScreen
 
 object Routes {
     const val HOME = "home"
+    const val STATS = "stats"
     const val ANALYTICS = "analytics"
     const val HISTORY = "history"
 
@@ -53,8 +57,13 @@ object Routes {
     const val HISTORY_PATTERN =
         "history?category={category}&from={from}&to={to}&period={period}"
 
-    fun history(category: Category, from: Long, to: Long, period: String): String =
-        "history?category=${category.name}&from=$from&to=$to&period=${Uri.encode(period)}"
+    fun history(category: Category?, from: Long, to: Long, period: String): String =
+        "history?" + listOfNotNull(
+            category?.let { "category=${it.name}" },
+            "from=$from",
+            "to=$to",
+            "period=${Uri.encode(period)}"
+        ).joinToString("&")
     const val RAW_LOG = "raw_log"
     const val ADD_TRANSACTION = "add_transaction"
     const val CATEGORIZE = "categorize"
@@ -68,6 +77,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val TABS = listOf(
     Tab(Routes.HOME, "Обзор", Icons.Filled.Home),
+    Tab(Routes.STATS, "Статистика", Icons.Filled.Insights),
     Tab(Routes.ANALYTICS, "Аналитика", Icons.Filled.PieChart),
     Tab(Routes.HISTORY, "История", Icons.Filled.ReceiptLong)
 )
@@ -89,6 +99,7 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
         Routes.SUBSCRIPTIONS -> "Подписки" to true
         Routes.BACKUP -> "Бэкап и восстановление" to true
         Routes.BATCH_IMPORT -> "Импорт чеков" to true
+        Routes.STATS -> "Статистика" to false
         Routes.ANALYTICS -> "Аналитика" to false
         Routes.HISTORY -> "История" to false
         else -> "" to false
@@ -165,10 +176,17 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
                     onOpenBatchImport = { navController.navigate(Routes.BATCH_IMPORT) }
                 )
             }
+            composable(Routes.STATS) {
+                StatsScreen(
+                    onOpenMonth = { from, to, label ->
+                        navController.openHistory(Routes.history(null, from, to, label))
+                    }
+                )
+            }
             composable(Routes.ANALYTICS) {
                 AnalyticsScreen(
                     onOpenCategory = { category, from, to, period ->
-                        navController.navigate(Routes.history(category, from, to, period))
+                        navController.openHistory(Routes.history(category, from, to, period))
                     }
                 )
             }
@@ -200,5 +218,18 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
             composable(Routes.BACKUP) { BackupScreen() }
             composable(Routes.BATCH_IMPORT) { BatchImportScreen() }
         }
+    }
+}
+
+/**
+ * Opens History with a filter as a switch to the History tab rather than as a
+ * screen on top of the current one. Stacked on top, it stayed inside that tab's
+ * saved state: tapping Statistics or Analytics afterwards restored the stack
+ * with History still on top, so the tab seemed not to respond.
+ */
+private fun NavHostController.openHistory(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
     }
 }

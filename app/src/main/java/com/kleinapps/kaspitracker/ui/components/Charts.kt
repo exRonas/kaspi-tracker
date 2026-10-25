@@ -154,7 +154,11 @@ fun DonutChart(
     }
 }
 
-data class BarEntry(val label: String, val value: Double)
+/**
+ * One bar. [label] sits under the bar and must stay short; [detail] names the
+ * bar in full in the line above the chart when it is picked or the peak.
+ */
+data class BarEntry(val label: String, val value: Double, val detail: String = label)
 
 /**
  * Rounded bar chart with a background track and labels under each bar. Tap a
@@ -179,10 +183,10 @@ fun BarChart(
 
     Column(modifier = modifier) {
         Text(
-            text = selected?.let { i -> "${bars[i].label} · ${formatMoney(bars[i].value)}" }
+            text = selected?.let { i -> "${bars[i].detail} · ${formatMoney(bars[i].value)}" }
                 ?: peakIndex
                     ?.takeIf { bars[it].value > 0 }
-                    ?.let { i -> "Пик: ${bars[i].label} · ${formatMoney(bars[i].value)}" }
+                    ?.let { i -> "Пик: ${bars[i].detail} · ${formatMoney(bars[i].value)}" }
                 ?: " ",
             style = MaterialTheme.typography.labelLarge,
             color = if (selected != null) barColor else MaterialTheme.colorScheme.onSurfaceVariant,
