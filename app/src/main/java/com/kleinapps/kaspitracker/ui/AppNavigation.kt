@@ -44,6 +44,13 @@ import com.kleinapps.kaspitracker.ui.screens.CategorizeScreen
 import com.kleinapps.kaspitracker.ui.screens.CategoryRulesScreen
 import com.kleinapps.kaspitracker.ui.screens.HistoryScreen
 import com.kleinapps.kaspitracker.ui.screens.HomeScreen
+import com.kleinapps.kaspitracker.ui.screens.Onboarding
+import com.kleinapps.kaspitracker.ui.screens.OnboardingScreen
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.kleinapps.kaspitracker.ui.screens.PairScreen
 import com.kleinapps.kaspitracker.ui.screens.RawLogScreen
 import com.kleinapps.kaspitracker.ui.screens.StatsScreen
@@ -106,7 +113,24 @@ private val SCREEN_TITLES = mapOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(notificationAccessGranted: Boolean) {
+    val context = LocalContext.current
+    var onboarding by rememberSaveable { mutableStateOf(Onboarding.needed(context)) }
+    var openPairAfterOnboarding by rememberSaveable { mutableStateOf(false) }
+    if (onboarding) {
+        OnboardingScreen(onFinish = { openPair ->
+            openPairAfterOnboarding = openPair
+            onboarding = false
+        })
+        return
+    }
+
     val navController = rememberNavController()
+    LaunchedEffect(openPairAfterOnboarding) {
+        if (openPairAfterOnboarding) {
+            navController.navigate(Routes.PAIR)
+            openPairAfterOnboarding = false
+        }
+    }
     val backStack by navController.currentBackStackEntryAsState()
     // Optional-argument routes come back as the whole pattern ("history?..."),
     // so tab selection and the title compare on the part before the query.
