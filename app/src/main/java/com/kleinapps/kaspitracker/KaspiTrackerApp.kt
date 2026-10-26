@@ -6,6 +6,10 @@ import com.kleinapps.kaspitracker.data.TransactionRepository
 import com.kleinapps.kaspitracker.service.AutoBackup
 import com.kleinapps.kaspitracker.service.ListenerWatchdog
 import com.kleinapps.kaspitracker.sync.CoupleStore
+import com.kleinapps.kaspitracker.sync.SyncScheduler
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import com.kleinapps.kaspitracker.ui.theme.ThemeController
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
@@ -13,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+@OptIn(FlowPreview::class)
 class KaspiTrackerApp : Application() {
     // Eagerly warm up the repository/database singletons.
     val repository: TransactionRepository by lazy { TransactionRepository.get(this) }
@@ -25,6 +30,15 @@ class KaspiTrackerApp : Application() {
         PDFBoxResourceLoader.init(applicationContext)
         ThemeController.init(this)
         CoupleStore.init(this)
+        // Pairing: a periodic round while online, and one shortly after any
+        // change to this phone's operations (debounced, so a batch is one sync).
+        SyncScheduler.schedulePeriodic(this)
+        appScope.launch {
+            repository.observeAll()
+                .drop(1)
+                .debounce(5_000)
+                .collect { if (CoupleStore.state.value.paired) SyncScheduler.requestSoon(this@KaspiTrackerApp) }
+        }
         // Weekly safety-net copy of everything into Downloads.
         AutoBackup.schedule(this)
         // Periodic check that the notification listener is still being fed.

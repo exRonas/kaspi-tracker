@@ -60,6 +60,8 @@ import com.kleinapps.kaspitracker.ui.components.People
 import com.kleinapps.kaspitracker.ui.components.PersonAvatar
 import com.kleinapps.kaspitracker.ui.components.ScopeBar
 import com.kleinapps.kaspitracker.ui.components.rememberPeople
+import com.kleinapps.kaspitracker.ui.components.syncAgo
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import com.kleinapps.kaspitracker.util.monthName
 import com.kleinapps.kaspitracker.ui.components.AppCard
 import com.kleinapps.kaspitracker.ui.components.Banner
@@ -98,6 +100,7 @@ fun HomeScreen(
     onOpenBackup: () -> Unit,
     onOpenBatchImport: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenPair: () -> Unit,
     headerActions: @Composable () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -252,6 +255,13 @@ fun HomeScreen(
             if (!readOnly) item {
                 ToolGrid(
                     tiles = listOf(
+                        Tool(
+                            Icons.Outlined.FavoriteBorder,
+                            "Пара",
+                            if (couple.paired) "Вы связаны · ${people.partnerName} · ${syncAgo(couple.lastSyncAt)}"
+                            else "Связать телефоны и смотреть траты вдвоём",
+                            onOpenPair
+                        ),
                         Tool(Icons.Outlined.AddCircleOutline, "Добавить запись", "Наличные и всё, что без пуша", onAddManual),
                         Tool(Icons.Outlined.PictureAsPdf, "Импорт чеков", "Загрузить сразу пачку PDF из Загрузок", onOpenBatchImport),
                         Tool(Icons.Outlined.Rule, "Правила категорий", "Что приложение запомнило о магазинах", onOpenRules),

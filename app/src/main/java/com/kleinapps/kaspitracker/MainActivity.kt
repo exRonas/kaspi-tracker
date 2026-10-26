@@ -22,6 +22,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kleinapps.kaspitracker.receipt.ReceiptImportResult
+import com.kleinapps.kaspitracker.sync.CoupleStore
+import com.kleinapps.kaspitracker.sync.SyncScheduler
 import com.kleinapps.kaspitracker.receipt.ReceiptImporter
 import com.kleinapps.kaspitracker.ui.AppNavigation
 import com.kleinapps.kaspitracker.ui.theme.KaspiTrackerTheme
@@ -52,6 +54,8 @@ class MainActivity : ComponentActivity() {
                         val observer = LifecycleEventObserver { _, event ->
                             if (event == Lifecycle.Event.ON_RESUME) {
                                 granted = isNotificationAccessGranted(context)
+                                // Opening the app is when fresh partner data matters most.
+                                if (CoupleStore.state.value.paired) SyncScheduler.requestSoon(context)
                             }
                         }
                         lifecycleOwner.lifecycle.addObserver(observer)

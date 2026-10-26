@@ -44,6 +44,7 @@ import com.kleinapps.kaspitracker.ui.screens.CategorizeScreen
 import com.kleinapps.kaspitracker.ui.screens.CategoryRulesScreen
 import com.kleinapps.kaspitracker.ui.screens.HistoryScreen
 import com.kleinapps.kaspitracker.ui.screens.HomeScreen
+import com.kleinapps.kaspitracker.ui.screens.PairScreen
 import com.kleinapps.kaspitracker.ui.screens.RawLogScreen
 import com.kleinapps.kaspitracker.ui.screens.StatsScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,6 +80,7 @@ object Routes {
     const val CATEGORY_RULES = "category_rules"
     const val BACKUP = "backup"
     const val BATCH_IMPORT = "batch_import"
+    const val PAIR = "pair"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
@@ -97,7 +99,8 @@ private val SCREEN_TITLES = mapOf(
     Routes.CATEGORIZE to "Разобрать операции",
     Routes.CATEGORY_RULES to "Правила категорий",
     Routes.BACKUP to "Бэкап и восстановление",
-    Routes.BATCH_IMPORT to "Импорт чеков"
+    Routes.BATCH_IMPORT to "Импорт чеков",
+    Routes.PAIR to "Пара"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,6 +188,7 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
                     onOpenBatchImport = { navController.navigate(Routes.BATCH_IMPORT) },
                     onOpenHistory = { navController.openHistory(Routes.HISTORY) },
+                    onOpenPair = { navController.navigate(Routes.PAIR) },
                     headerActions = { ThemeToggleButton() }
                 )
             }
@@ -232,6 +236,7 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
             composable(Routes.CATEGORY_RULES) { CategoryRulesScreen() }
             composable(Routes.BACKUP) { BackupScreen() }
             composable(Routes.BATCH_IMPORT) { BatchImportScreen() }
+            composable(Routes.PAIR) { PairScreen() }
         }
     }
     }
