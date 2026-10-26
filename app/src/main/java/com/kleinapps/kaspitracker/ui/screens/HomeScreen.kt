@@ -453,21 +453,13 @@ private fun ReviewBanner(count: Int, onClick: () -> Unit) {
 private fun WeekCard(days: List<DayBar>) {
     val peak = days.withIndex().maxByOrNull { it.value.amount }?.takeIf { it.value.amount > 0 }
     AppCard {
-        SectionHeader(title = "Траты за 7 дней") {
-            peak?.let {
-                Text(
-                    text = "Пик: ${it.value.label} · ${formatMoneyWhole(it.value.amount)}",
-                    style = Kaspi.type.label,
-                    color = Kaspi.colors.ink2
-                )
-            }
-        }
+        SectionHeader(title = "Траты за 7 дней")
         Spacer(Modifier.height(16.dp))
         if (peak == null) {
             Text(text = "За неделю трат не было", style = Kaspi.type.bodyM, color = Kaspi.colors.ink2)
         } else {
             BarChart(
-                bars = days.map { BarEntry(it.label, it.amount) },
+                bars = days.map { BarEntry(it.label, it.amount, detail = formatFullDate(it.dayStart)) },
                 showAverage = true,
                 emphasizedLabel = days.lastIndex
             )

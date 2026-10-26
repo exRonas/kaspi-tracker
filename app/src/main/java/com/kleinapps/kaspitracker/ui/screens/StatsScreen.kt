@@ -115,6 +115,7 @@ fun StatsScreen(
                         spent = year.months.map { it.spent },
                         income = year.months.map { it.income },
                         labels = MONTHS_LETTER,
+                        details = MONTHS_FULL,
                         highlight = year.months.indexOfLast { !it.isFuture }
                     )
                 }
@@ -278,7 +279,12 @@ private fun WeekdayCard(overall: OverallStats) {
             )
         }
         Spacer(Modifier.height(16.dp))
-        BarChart(bars = averages.mapIndexed { i, v -> BarEntry(WEEKDAYS[i], round(v)) }, height = 96.dp)
+        BarChart(
+            bars = averages.mapIndexed { i, v ->
+                BarEntry(WEEKDAYS[i], round(v), detail = "${WEEKDAYS_PLURAL[i].replaceFirstChar { it.uppercase() }}, в среднем")
+            },
+            height = 96.dp
+        )
     }
 }
 
@@ -293,7 +299,10 @@ private fun WeeksCard(overall: OverallStats) {
             color = Kaspi.colors.ink2
         )
         Spacer(Modifier.height(16.dp))
-        BarChart(bars = weeks.map { BarEntry("", it.spent) }, height = 72.dp)
+        BarChart(
+            bars = weeks.map { BarEntry("", it.spent, detail = "Неделя с ${shortDayFormat.format(it.start)}") },
+            height = 72.dp
+        )
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = weeks.firstOrNull()?.let { shortDayFormat.format(it.start) }.orEmpty(),

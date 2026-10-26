@@ -14,7 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -32,7 +38,15 @@ import androidx.compose.ui.unit.dp
 import com.kleinapps.kaspitracker.ui.theme.Kaspi
 import com.kleinapps.kaspitracker.util.formatMoneyWhole
 
-data class BarEntry(val label: String, val value: Double)
+/**
+ * One bar. [label] sits under it and must stay short; [detail] names the bar in
+ * full in the line above the chart when it is tapped ("Вторник, 20 октября").
+ */
+data class BarEntry(val label: String, val value: Double, val detail: String = label)
+
+/** Index of the bar under a tap at [x] in a chart [width] px wide split into [count] equal cells. */
+private fun cellAt(x: Float, width: Float, count: Int): Int =
+    (x / width * count).toInt().coerceIn(0, count - 1)
 
 /**
  * Columns with one emphasized bar (the peak, or a chosen one) in the full
@@ -56,9 +70,33 @@ fun BarChart(
     val track = Kaspi.colors.surf2
     val averageColor = Kaspi.colors.ink3
     val average = bars.map { it.value }.average()
+    // A tap pins one bar's exact amount; tapping it again lets go.
+    var selected by remember(bars) { mutableStateOf<Int?>(null) }
+    val emphasized = selected ?: highlight
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
+        Text(
+            text = when {
+                selected != null -> "${bars[selected!!].detail} · ${formatMoneyWhole(bars[selected!!].value)}"
+                highlight != null -> "Пик: ${bars[highlight].detail} · ${formatMoneyWhole(bars[highlight].value)}"
+                else -> "Нажми на столбец, чтобы увидеть сумму"
+            },
+            style = Kaspi.type.label,
+            color = Kaspi.colors.ink2,
+            maxLines = 1,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .pointerInput(bars.size) {
+                    detectTapGestures { offset ->
+                        val i = cellAt(offset.x, size.width.toFloat(), bars.size)
+                        selected = if (selected == i) null else i
+                    }
+                }
+        ) {
             val gap = 6.dp.toPx()
             val barWidth = (size.width - gap * (bars.size - 1)) / bars.size
             val radius = CornerRadius(minOf(6.dp.toPx(), barWidth / 2))
@@ -70,7 +108,7 @@ fun BarChart(
                     drawRoundRect(track, Offset(x, size.height - 3.dp.toPx()), Size(barWidth, 3.dp.toPx()), radius)
                 } else {
                     drawRoundRect(
-                        color = if (i == highlight) color else pale,
+                        color = if (i == emphasized) color else pale,
                         topLeft = Offset(x, size.height - h),
                         size = Size(barWidth, h.coerceAtLeast(3.dp.toPx())),
                         cornerRadius = radius
@@ -132,13 +170,17 @@ fun PairedBarChart(
     modifier: Modifier = Modifier,
     height: Dp = 120.dp,
     /** Index drawn in the full accent — the current month. */
-    highlight: Int? = null
+    highlight: Int? = null,
+    /** Full names for the tapped-month line; defaults to [labels]. */
+    details: List<String> = labels
 ) {
     val accent = Kaspi.colors.accent
     val pale = accent.copy(alpha = 0.55f).compositeOver(Kaspi.colors.surf)
     val pos = Kaspi.colors.pos.copy(alpha = 0.75f).compositeOver(Kaspi.colors.surf)
     val axis = Kaspi.colors.line
     val max = (spent + income).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    var selected by remember(spent, income) { mutableStateOf<Int?>(null) }
+    val emphasized = selected ?: highlight
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -146,8 +188,30 @@ fun PairedBarChart(
             Spacer(Modifier.width(12.dp))
             LegendDot(pos, "Доход")
         }
-        Spacer(Modifier.height(12.dp))
-        Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = selected?.let { i ->
+                val s = spent.getOrElse(i) { 0.0 }
+                val inc = income.getOrElse(i) { 0.0 }
+                "${details.getOrElse(i) { labels[i] }} · −${formatMoneyWhole(s)}" +
+                    if (inc > 0) " · +${formatMoneyWhole(inc)}" else ""
+            } ?: "Нажми на месяц, чтобы увидеть суммы",
+            style = Kaspi.type.label,
+            color = Kaspi.colors.ink2,
+            maxLines = 1,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .pointerInput(labels.size) {
+                    detectTapGestures { offset ->
+                        val i = cellAt(offset.x, size.width.toFloat(), labels.size)
+                        selected = if (selected == i) null else i
+                    }
+                }
+        ) {
             val groups = labels.size
             val groupWidth = size.width / groups
             val bar = (groupWidth * 0.3f).coerceAtMost(8.dp.toPx())
@@ -158,7 +222,7 @@ fun PairedBarChart(
                 val inc = income.getOrElse(i) { 0.0 }
                 if (s > 0) {
                     val h = (s / max).toFloat() * size.height
-                    drawRoundRect(if (i == highlight) accent else pale, Offset(center - bar - 1.dp.toPx(), size.height - h), Size(bar, h), radius)
+                    drawRoundRect(if (i == emphasized) accent else pale, Offset(center - bar - 1.dp.toPx(), size.height - h), Size(bar, h), radius)
                 }
                 if (inc > 0) {
                     val h = (inc / max).toFloat() * size.height
