@@ -38,7 +38,8 @@ object SyncScheduler {
             .setInitialDelay(5, TimeUnit.SECONDS)
             .setConstraints(online)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(SOON, ExistingWorkPolicy.REPLACE, request)
+        // APPEND_OR_REPLACE: a sync already running finishes, the new one queues after it.
+        WorkManager.getInstance(context).enqueueUniqueWork(SOON, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 }
 
@@ -49,9 +50,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         CoupleStore.init(applicationContext)
         val manager = CoupleManager.get(applicationContext)
         val state = CoupleStore.state.value
-        when {
-            state.pendingCode != null -> runCatching { manager.checkPending() }
-            state.paired -> manager.syncNow()
+        runCatching {
+            when {
+                state.pendingCode != null -> manager.checkPending()
+                state.paired -> manager.syncNow()
+            }
         }
         return Result.success()
     }

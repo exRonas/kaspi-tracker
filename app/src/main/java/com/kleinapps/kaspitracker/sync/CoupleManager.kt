@@ -5,6 +5,8 @@ import com.kleinapps.kaspitracker.data.AppDatabase
 import com.kleinapps.kaspitracker.data.ViewScope
 import com.kleinapps.kaspitracker.ui.theme.PersonTone
 import com.kleinapps.kaspitracker.ui.theme.ThemeController
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Pairing and syncing as the screens see them: every action updates the
@@ -19,6 +21,13 @@ class CoupleManager(
 ) {
 
     private val state get() = holder.state.value
+
+    /**
+     * One cloud conversation at a time. The periodic worker, the "soon" worker,
+     * the Sync button and the code poll can all fire together; without this a
+     * pull still running after an unpair writes the partner's rows back.
+     */
+    private val lock = Mutex()
 
     /**
      * Keeps the name locally; while paired also sends it (and the colour) to the
@@ -40,25 +49,42 @@ class CoupleManager(
     }
 
     /** Pairs with the owner of [code], then pulls their data. Throws with the reason on a bad code. */
-    suspend fun redeem(code: String) {
+    suspend fun redeem(code: String) = lock.withLock {
         cloud.ensureSignedIn()
         cloud.saveProfile(Profile(state.myName, myColor))
-        cloud.redeemPairCode(code)
-        holder.update { it.copy(paired = true, pendingCode = null, lastError = null) }
-        syncNow()
+        try {
+            cloud.redeemPairCode(code)
+        } catch (e: CloudException) {
+            // The server may have paired us while the answer was lost; a retry
+            // then hears "already paired" about our own pair.
+            if (e.error != CloudError.ALREADY_PAIRED || cloud.partnerId() == null) throw e
+        }
+        startPairing()
     }
 
     /** True once the partner has entered this phone's code. */
-    suspend fun checkPending(): Boolean {
-        if (state.pendingCode == null) return state.paired
-        if (cloud.partnerId() == null) return false
+    suspend fun checkPending(): Boolean = lock.withLock {
+        if (state.pendingCode == null) return@withLock state.paired
+        if (cloud.partnerId() == null) return@withLock false
+        startPairing()
+        true
+    }
+
+    /**
+     * A new pair starts from a clean slate: whatever this phone thinks it sent
+     * before (a restored backup can carry sync marks) is forgotten, so the
+     * whole history goes up to the new partner.
+     */
+    private suspend fun startPairing() {
+        engine.wipePartnerData()
         holder.update { it.copy(paired = true, pendingCode = null, lastError = null) }
-        syncNow()
-        return true
+        syncLocked()
     }
 
     /** One sync round. No-op while unpaired; errors are recorded, never thrown. */
-    suspend fun syncNow() {
+    suspend fun syncNow() = lock.withLock { syncLocked() }
+
+    private suspend fun syncLocked() {
         if (!state.paired) return
         try {
             when (val result = engine.sync()) {
@@ -74,12 +100,24 @@ class CoupleManager(
             }
         } catch (e: CloudException) {
             holder.update { it.copy(lastError = e.error) }
+        } catch (e: Exception) {
+            // An answer the client could not read: record it, never crash the app.
+            holder.update { it.copy(lastError = CloudError.UNKNOWN) }
         }
     }
 
     /** Ends the couple for both phones and forgets the partner's data here. */
-    suspend fun unpair() {
-        cloud.unpair()
+    suspend fun unpair() = lock.withLock {
+        try {
+            cloud.unpair()
+        } catch (e: CloudException) {
+            // Offline: keep the pair so the user can retry — the partner would
+            // otherwise keep seeing our data. Any other refusal (a dead session
+            // after a phone restore) must not trap the user: unpair here and
+            // start the next pairing as a new anonymous user.
+            if (e.error == CloudError.NETWORK || e.error == CloudError.SERVER_UNAVAILABLE) throw e
+            cloud.signOut()
+        }
         engine.wipePartnerData()
         holder.update {
             it.copy(paired = false, partnerName = "", partnerColor = -1, scope = ViewScope.ME, lastError = null)

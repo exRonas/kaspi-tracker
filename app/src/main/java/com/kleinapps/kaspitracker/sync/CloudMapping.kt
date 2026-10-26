@@ -28,7 +28,15 @@ fun Transaction.toCloud(): CloudTransaction = CloudTransaction(
  * Fingerprint of what the cloud would hold for this row. Edits to fields that
  * never leave the phone don't change it, so they cause no upload.
  */
-fun Transaction.syncHash(): Int = toCloud().hashCode()
+fun Transaction.syncHash(): Int = with(toCloud()) {
+    // Built from plain values only: an enum's hashCode() is an identity hash
+    // that changes with every app start, which made every row look changed.
+    listOf(uuid, timestamp, amount, type.name, merchant, category?.name, account, source.name, shared, excludedFromStats)
+        .joinToString(SEPARATOR)
+        .hashCode()
+}
+
+private const val SEPARATOR = "\u001F"
 
 fun CloudTransaction.toPartner(): PartnerTransaction = PartnerTransaction(
     uuid = uuid,

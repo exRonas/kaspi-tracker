@@ -1,5 +1,7 @@
 package com.kleinapps.kaspitracker.sync
 
+import kotlinx.coroutines.CompletableDeferred
+
 /**
  * In-memory cloud for two users, "me" and "partner", behaving like the
  * Supabase side: rows keyed by uuid per owner, a server clock that is the same
@@ -15,6 +17,12 @@ class FakeCloud(
     var paired = true
     val profiles = mutableMapOf<String, Profile>()
     var failPush: CloudError? = null
+    var failUnpair: CloudError? = null
+    /** Answer redeem with this error even though the code is valid (lost-response retries). */
+    var redeemError: CloudError? = null
+    /** When set, a pull suspends until it completes, to interleave a sync with other calls. */
+    var pullGate: CompletableDeferred<Unit>? = null
+    var signedOut = false
     var codes = mutableMapOf<String, String>()
     var pushCalls = 0
     private var clock = 0
@@ -38,13 +46,19 @@ class FakeCloud(
     }
 
     override suspend fun redeemPairCode(code: String) {
+        redeemError?.let { throw CloudException(it) }
         if (codes[code.replace("-", "").uppercase()] == null) throw CloudException(CloudError.CODE_INVALID)
         paired = true
     }
 
     override suspend fun partnerId(): String? = if (paired) partner else null
 
+    override fun signOut() {
+        signedOut = true
+    }
+
     override suspend fun unpair() {
+        failUnpair?.let { throw CloudException(it) }
         paired = false
         rows.values.forEach { it.clear() }
     }
@@ -68,7 +82,15 @@ class FakeCloud(
         }
     }
 
-    override suspend fun pull(partnerId: String, after: PullCursor?, limit: Int): List<CloudTransaction> =
+    override suspend fun pull(partnerId: String, after: PullCursor?, limit: Int): List<CloudTransaction> {
+        // The page is read first, as a server would answer before the phone
+        // gets to handle it: the gate holds the response "in flight".
+        val page = pullPage(partnerId, after, limit)
+        pullGate?.await()
+        return page
+    }
+
+    private fun pullPage(partnerId: String, after: PullCursor?, limit: Int): List<CloudTransaction> =
         rows.getValue(partnerId).values
             .sortedWith(compareBy({ it.updatedAt }, { it.uuid }))
             .filter { row ->

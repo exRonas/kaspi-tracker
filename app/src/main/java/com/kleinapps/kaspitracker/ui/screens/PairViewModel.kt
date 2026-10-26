@@ -71,6 +71,9 @@ class PairViewModel(app: Application) : AndroidViewModel(app) {
                 null
             } catch (e: CloudException) {
                 e.error
+            } catch (e: Exception) {
+                // An answer the client could not read: show it, never crash.
+                CloudError.UNKNOWN
             }
             _status.value = PairUiStatus(busy = false, error = error ?: couple.value.lastError)
         }

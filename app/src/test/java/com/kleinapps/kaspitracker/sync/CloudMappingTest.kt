@@ -59,4 +59,22 @@ class CloudMappingTest {
         assertNotEquals(tx.syncHash(), tx.copy(shared = true).syncHash())
         assertNotEquals(tx.syncHash(), tx.copy(category = Category.CAFE).syncHash())
     }
+
+    @Test
+    fun `sync hash is the same in every process`() {
+        // Enum hashCode() is an identity hash that changes on every app start;
+        // a hash built on it made every row look changed after a restart.
+        val tx = Transaction(
+            timestamp = 1_785_487_020_000, title = null, rawText = "", amount = 2_431.0,
+            type = TxType.PURCHASE, merchant = "Inmart", source = TxSource.RECEIPT,
+            category = Category.GROCERIES, account = "Kaspi Gold",
+            uuid = "7f0c1a2e-0000-4000-8000-000000000001", shared = true
+        )
+        assertEquals(EXPECTED_HASH, tx.syncHash())
+    }
+
+    private companion object {
+        // Pinned: a change here means every phone re-uploads its history once.
+        const val EXPECTED_HASH = 1_811_927_737
+    }
 }

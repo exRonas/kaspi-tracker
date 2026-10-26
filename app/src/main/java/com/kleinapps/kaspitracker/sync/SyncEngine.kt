@@ -35,9 +35,18 @@ class SyncEngine(
             wipePartnerData()
             return SyncResult.Unpaired
         }
-        val pushed = pushChanges()
-        pushDeletions()
+        // A failed upload must not also stop the partner's rows from arriving:
+        // pull anyway, then report the upload error.
+        var pushed = 0
+        val pushError = try {
+            pushed = pushChanges()
+            pushDeletions()
+            null
+        } catch (e: CloudException) {
+            e
+        }
         val pulled = pullPartner(partnerId)
+        pushError?.let { throw it }
         return SyncResult.Synced(partnerId, cloud.profile(partnerId), pushed, pulled)
     }
 

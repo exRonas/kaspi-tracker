@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and older. The pairing state belongs to this install's cloud
+     session: restored onto another phone it points at a session the server has
+     already rotated away, and the phone would be stuck "paired" and unable to
+     sync. Everything else (history, rules, settings) is restored as before. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="supabase_session.xml" />
+    <exclude domain="sharedpref" path="couple.xml" />
+    <exclude domain="sharedpref" path="sync_cursor.xml" />
+</full-backup-content>

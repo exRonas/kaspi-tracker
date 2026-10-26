@@ -110,6 +110,10 @@ class SupabaseCloud(context: Context) : CloudApi {
         return couple.getString("user_a").takeIf { it != me } ?: couple.getString("user_b")
     }
 
+    override fun signOut() {
+        prefs.edit().clear().apply()
+    }
+
     override suspend fun unpair() {
         rest("POST", "/rest/v1/rpc/unpair", "{}")
     }
@@ -136,7 +140,12 @@ class SupabaseCloud(context: Context) : CloudApi {
     override suspend fun push(rows: List<CloudTransaction>) {
         if (rows.isEmpty()) return
         val body = JSONArray().apply { rows.forEach { put(it.toJson()) } }.toString()
-        rest("POST", "/rest/v1/transactions", body, prefer = "resolution=merge-duplicates,return=minimal")
+        rest(
+            "POST",
+            "/rest/v1/transactions?on_conflict=user_id,id",
+            body,
+            prefer = "resolution=merge-duplicates,return=minimal"
+        )
     }
 
     override suspend fun markDeleted(uuids: List<String>) {
@@ -186,7 +195,10 @@ class SupabaseCloud(context: Context) : CloudApi {
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.setRequestProperty("apikey", CloudConfig.anonKey)
-            connection.setRequestProperty("Authorization", "Bearer ${token ?: CloudConfig.anonKey}")
+            // Only a user's session goes in Authorization. Sign-up and refresh send
+            // the project key as `apikey` alone, which both the legacy anon JWT and
+            // the newer sb_publishable_ keys accept.
+            token?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
             connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Accept", "application/json")
             prefer?.let { connection.setRequestProperty("Prefer", it) }

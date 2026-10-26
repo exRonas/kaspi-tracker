@@ -59,6 +59,8 @@ interface CloudApi {
     /** The partner's user id, or null while this phone is not paired. */
     suspend fun partnerId(): String?
     suspend fun unpair()
+    /** Forgets the stored session; the next call signs in as a new anonymous user. */
+    fun signOut()
     suspend fun saveProfile(profile: Profile)
     suspend fun profile(userId: String): Profile?
     suspend fun push(rows: List<CloudTransaction>)

@@ -9,6 +9,8 @@ import com.kleinapps.kaspitracker.data.TxType
 import com.kleinapps.kaspitracker.data.ViewScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -162,5 +164,95 @@ class CoupleManagerTest {
         manager.setScope(ViewScope.PARTNER)
         assertEquals(ViewScope.PARTNER, holder.state.value.scope)
         assertEquals(ViewScope.ME, holder.state.value.effectiveScope)
+    }
+
+    @Test
+    fun `unpair still happens here when the session is dead`() = runTest {
+        paired()
+        cloud.partnerPushes(listOf(partnerRow("p1")))
+        manager.syncNow()
+        cloud.failUnpair = CloudError.UNKNOWN
+
+        manager.unpair()
+
+        assertFalse(holder.state.value.paired)
+        assertTrue(partnerDao.rows.value.isEmpty())
+        assertTrue(cloud.signedOut)
+    }
+
+    @Test
+    fun `unpair offline keeps the pair so it can be retried`() = runTest {
+        paired()
+        cloud.failUnpair = CloudError.NETWORK
+
+        try {
+            manager.unpair()
+            fail("expected the network error to surface")
+        } catch (e: CloudException) {
+            assertEquals(CloudError.NETWORK, e.error)
+        }
+        assertTrue(holder.state.value.paired)
+    }
+
+    @Test
+    fun `a new pairing uploads the whole history even if rows look synced`() = runTest {
+        // A database restored from a backup can carry sync marks from an old pairing.
+        val id = dao.insert(
+            Transaction(timestamp = 1, title = null, rawText = "", amount = 5.0, type = TxType.PURCHASE, merchant = "M")
+        )
+        val row = dao.getById(id)!!
+        dao.markSynced(row.uuid, row.syncHash())
+        cloud.codes["ABCDEFGH"] = "partner"
+
+        manager.redeem("ABCDEFGH")
+
+        assertEquals(1, cloud.rows.getValue("me").size)
+    }
+
+    @Test
+    fun `a lost redeem response is recovered on retry`() = runTest {
+        cloud.codes["ABCDEFGH"] = "partner"
+        cloud.paired = true // the server paired us, the answer never arrived
+        cloud.redeemError = CloudError.ALREADY_PAIRED
+
+        manager.redeem("ABCDEFGH")
+
+        assertTrue(holder.state.value.paired)
+    }
+
+    @Test
+    fun `unpair waits for a sync in progress instead of being undone by it`() = runTest {
+        paired()
+        cloud.partnerPushes(listOf(partnerRow("p1")))
+        val gate = CompletableDeferred<Unit>()
+        cloud.pullGate = gate
+
+        val sync = launch { manager.syncNow() }
+        testScheduler.runCurrent()
+        val unpair = launch { manager.unpair() }
+        testScheduler.runCurrent()
+        gate.complete(Unit)
+        sync.join()
+        unpair.join()
+
+        assertTrue(partnerDao.rows.value.isEmpty())
+        assertFalse(holder.state.value.paired)
+    }
+
+    @Test
+    fun `an unexpected failure is recorded, not thrown`() = runTest {
+        paired()
+        val broken = object : CloudApi by cloud {
+            override suspend fun partnerId(): String? = throw IllegalStateException("bad json")
+        }
+        val cursor = object : SyncCursorStore {
+            override var cursor: PullCursor? = null
+        }
+        val engine = SyncEngine(dao, partnerDao, FakePendingDeleteDao(), broken, cursor)
+        val fragile = CoupleManager(broken, engine, holder)
+
+        fragile.syncNow()
+
+        assertEquals(CloudError.UNKNOWN, holder.state.value.lastError)
     }
 }

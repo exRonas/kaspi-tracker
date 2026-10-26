@@ -36,7 +36,8 @@ URL, ANON = load_keys()
 def call(method, path, token=None, body=None, prefer=None):
     """Returns (status, parsed JSON or text)."""
     headers = {"apikey": ANON, "Content-Type": "application/json"}
-    headers["Authorization"] = f"Bearer {token or ANON}"
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     if prefer:
         headers["Prefer"] = prefer
     data = json.dumps(body).encode() if body is not None else None
@@ -123,6 +124,13 @@ def main():
     assert rows(a, f"transactions?id=eq.{row['id']}")[0]["deleted"] is False
     rpc(a, "mark_deleted", {"ids": [row["id"]]})
     assert rows(b, f"transactions?id=eq.{row['id']}")[0]["deleted"] is True
+
+    # 5c. Two users may hold the same operation id without blocking each other.
+    twin = dict(row, merchant="test C")
+    status, body = call("POST", "/rest/v1/transactions?on_conflict=user_id,id", c, [twin],
+                        prefer="resolution=merge-duplicates,return=minimal")
+    assert status == 201, f"same id under another user was refused: {status} {body}"
+    assert rows(a, f"transactions?id=eq.{row['id']}")[0]["merchant"] == "test A"
 
     # 6. Guessing is rate limited.
     results = [rpc(c, "redeem_pair_code", {"p_code": "QQQQQQQQ"})[1] for _ in range(11)]

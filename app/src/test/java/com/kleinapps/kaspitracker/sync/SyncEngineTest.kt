@@ -187,4 +187,20 @@ class SyncEngineTest {
         cloud.profiles["partner"] = Profile("Аня", 2)
         assertEquals(Profile("Аня", 2), (engine.sync() as SyncResult.Synced).partner)
     }
+
+    @Test
+    fun `a failed push still pulls the partner rows`() = runTest {
+        dao.insert(tx("Magnum"))
+        cloud.partnerPushes(listOf(partnerRow(1)))
+        cloud.failPush = CloudError.UNKNOWN
+
+        try {
+            engine.sync()
+            fail("expected the push error to surface")
+        } catch (e: CloudException) {
+            assertEquals(CloudError.UNKNOWN, e.error)
+        }
+
+        assertEquals(listOf("p-00001"), partnerDao.rows.value.map { it.uuid })
+    }
 }

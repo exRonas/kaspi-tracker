@@ -40,7 +40,7 @@ create table public.pair_attempts (
 create index pair_attempts_recent on public.pair_attempts (user_id, at);
 
 create table public.transactions (
-  id uuid primary key,
+  id uuid not null,
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
   timestamp bigint not null,
   amount double precision,
@@ -53,7 +53,10 @@ create table public.transactions (
   excluded_from_stats boolean not null default false,
   -- Deletions are kept as a flag so the partner's phone learns about them.
   deleted boolean not null default false,
-  updated_at timestamptz not null default clock_timestamp()
+  updated_at timestamptz not null default clock_timestamp(),
+  -- Keyed per user: an id that some other (old, restored) account also used
+  -- must not block this phone's uploads.
+  primary key (user_id, id)
 );
 -- The partner's phone pulls by (updated_at, id) after its last cursor.
 create index transactions_pull on public.transactions (user_id, updated_at, id);
