@@ -3,6 +3,8 @@
 
     <!-- Needed to re-bind the listener after device reboot on some OEM ROMs. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Only used while paired with a partner, to sync through Supabase. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Budget warnings ("Бюджет заканчивается: Продукты"). Android 13+ asks at runtime. -->
 
     <application

@@ -118,6 +118,12 @@ def main():
     assert body == [], f"partner updated A's row: {body}"
     assert rows(a, f"transactions?id=eq.{row['id']}")[0]["merchant"] == "test A"
 
+    # 5b. mark_deleted only touches the caller's own rows.
+    rpc(b, "mark_deleted", {"ids": [row["id"]]})
+    assert rows(a, f"transactions?id=eq.{row['id']}")[0]["deleted"] is False
+    rpc(a, "mark_deleted", {"ids": [row["id"]]})
+    assert rows(b, f"transactions?id=eq.{row['id']}")[0]["deleted"] is True
+
     # 6. Guessing is rate limited.
     results = [rpc(c, "redeem_pair_code", {"p_code": "QQQQQQQQ"})[1] for _ in range(11)]
     assert results[-1] == "too_many_attempts", results

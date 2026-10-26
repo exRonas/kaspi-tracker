@@ -192,7 +192,16 @@ begin
   delete from couples where user_a = a;
 end $$;
 
+-- Flags the caller's own rows as deleted so the partner's phone drops them.
+-- Runs with the caller's rights: RLS still limits it to their own rows.
+create function public.mark_deleted(ids uuid[]) returns void
+  language sql set search_path = public as $$
+  update transactions set deleted = true where id = any(ids) and user_id = auth.uid()
+$$;
+
 revoke all on function public.partner_of(uuid) from public, anon;
+revoke all on function public.mark_deleted(uuid[]) from public, anon;
+grant execute on function public.mark_deleted(uuid[]) to authenticated;
 revoke all on function public.create_pair_code() from public, anon;
 revoke all on function public.redeem_pair_code(text) from public, anon;
 revoke all on function public.unpair() from public, anon;
