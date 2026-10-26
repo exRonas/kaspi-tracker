@@ -21,7 +21,6 @@ data class PartnerTransaction(
     val merchant: String?,
     val category: Category?,
     val account: String?,
-    val balance: Double?,
     val source: TxSource,
     val shared: Boolean,
     val excludedFromStats: Boolean
@@ -39,7 +38,6 @@ fun PartnerTransaction.toTransaction(): Transaction = Transaction(
     source = source,
     category = category,
     account = account,
-    balance = balance,
     excludedFromStats = excludedFromStats,
     uuid = uuid,
     shared = shared

@@ -86,7 +86,7 @@ internal val MIGRATION_6_7_STATEMENTS: List<String> = listOf(
     "CREATE UNIQUE INDEX IF NOT EXISTS `index_transactions_uuid` ON `transactions` (`uuid`)",
     "CREATE TABLE IF NOT EXISTS `partner_transactions` (`uuid` TEXT NOT NULL, " +
         "`timestamp` INTEGER NOT NULL, `amount` REAL, `type` TEXT NOT NULL, `merchant` TEXT, " +
-        "`category` TEXT, `account` TEXT, `balance` REAL, `source` TEXT NOT NULL, " +
+        "`category` TEXT, `account` TEXT, `source` TEXT NOT NULL, " +
         "`shared` INTEGER NOT NULL, `excludedFromStats` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
     "CREATE TABLE IF NOT EXISTS `shared_rules` (`merchantKey` TEXT NOT NULL, " +
         "`shared` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`merchantKey`))",

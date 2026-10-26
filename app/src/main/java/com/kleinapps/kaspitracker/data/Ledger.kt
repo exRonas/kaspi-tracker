@@ -35,32 +35,3 @@ fun ledgerFor(scope: ViewScope, mine: List<Transaction>, partner: List<Transacti
     }
     return entries.sortedByDescending { it.tx.timestamp }
 }
-
-/** Newest balance reading of every card, from the "Доступно" line of pushes. */
-fun latestBalances(txs: List<Transaction>): List<AccountBalance> =
-    balanceReadings(txs)
-        .groupBy { it.account }
-        .map { (_, readings) -> readings.maxBy { it.timestamp } }
-
-/**
- * Recent readings per card, oldest first: the last [BALANCE_POINTS] readings
- * overall, at most [POINTS_PER_CARD] per card — what the trend line draws.
- */
-fun balanceHistory(txs: List<Transaction>): Map<String, List<Double>> =
-    balanceReadings(txs)
-        .sortedByDescending { it.timestamp }
-        .take(BALANCE_POINTS)
-        .groupBy { it.account }
-        .mapValues { (_, readings) ->
-            readings.sortedBy { it.timestamp }.takeLast(POINTS_PER_CARD).map { it.balance }
-        }
-
-private fun balanceReadings(txs: List<Transaction>): List<AccountBalance> =
-    txs.mapNotNull { tx ->
-        val account = tx.account ?: return@mapNotNull null
-        val balance = tx.balance ?: return@mapNotNull null
-        AccountBalance(account, balance, tx.timestamp)
-    }
-
-private const val BALANCE_POINTS = 60
-private const val POINTS_PER_CARD = 12

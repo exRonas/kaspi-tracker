@@ -48,7 +48,6 @@ create table public.transactions (
   merchant text,
   category text,
   account text,
-  balance double precision,
   source text not null,
   shared boolean not null default false,
   excluded_from_stats boolean not null default false,

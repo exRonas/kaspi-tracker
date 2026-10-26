@@ -37,7 +37,6 @@ import com.kleinapps.kaspitracker.ui.screens.BackupScreen
 import com.kleinapps.kaspitracker.ui.screens.BatchImportScreen
 import com.kleinapps.kaspitracker.ui.screens.CategorizeScreen
 import com.kleinapps.kaspitracker.ui.screens.CategoryRulesScreen
-import com.kleinapps.kaspitracker.ui.screens.SubscriptionsScreen
 import com.kleinapps.kaspitracker.ui.screens.HistoryScreen
 import com.kleinapps.kaspitracker.ui.screens.HomeScreen
 import com.kleinapps.kaspitracker.ui.screens.RawLogScreen
@@ -68,7 +67,6 @@ object Routes {
     const val ADD_TRANSACTION = "add_transaction"
     const val CATEGORIZE = "categorize"
     const val CATEGORY_RULES = "category_rules"
-    const val SUBSCRIPTIONS = "subscriptions"
     const val BACKUP = "backup"
     const val BATCH_IMPORT = "batch_import"
 }
@@ -96,7 +94,6 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
         Routes.ADD_TRANSACTION -> "Новая запись" to true
         Routes.CATEGORIZE -> "Разобрать операции" to true
         Routes.CATEGORY_RULES -> "Правила категорий" to true
-        Routes.SUBSCRIPTIONS -> "Подписки" to true
         Routes.BACKUP -> "Бэкап и восстановление" to true
         Routes.BATCH_IMPORT -> "Импорт чеков" to true
         Routes.STATS -> "Статистика" to false
@@ -171,7 +168,6 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
                     onAddManual = { navController.navigate(Routes.ADD_TRANSACTION) },
                     onOpenCategorize = { navController.navigate(Routes.CATEGORIZE) },
                     onOpenRules = { navController.navigate(Routes.CATEGORY_RULES) },
-                    onOpenSubscriptions = { navController.navigate(Routes.SUBSCRIPTIONS) },
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
                     onOpenBatchImport = { navController.navigate(Routes.BATCH_IMPORT) }
                 )
@@ -214,7 +210,6 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
             }
             composable(Routes.CATEGORIZE) { CategorizeScreen() }
             composable(Routes.CATEGORY_RULES) { CategoryRulesScreen() }
-            composable(Routes.SUBSCRIPTIONS) { SubscriptionsScreen() }
             composable(Routes.BACKUP) { BackupScreen() }
             composable(Routes.BATCH_IMPORT) { BatchImportScreen() }
         }

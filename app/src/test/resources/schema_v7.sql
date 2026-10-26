@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS `transactions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `title` TEXT, `rawText` TEXT NOT NULL, `amount` REAL, `type` TEXT NOT NULL, `merchant` TEXT, `currency` TEXT NOT NULL, `source` TEXT NOT NULL, `category` TEXT, `account` TEXT, `dedupKey` TEXT, `balance` REAL, `excludedFromStats` INTEGER NOT NULL, `uuid` TEXT NOT NULL, `shared` INTEGER NOT NULL, `syncedHash` INTEGER);
 CREATE UNIQUE INDEX IF NOT EXISTS `index_transactions_uuid` ON `transactions` (`uuid`);
 CREATE TABLE IF NOT EXISTS `category_rules` (`merchantKey` TEXT NOT NULL, `category` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`merchantKey`));
-CREATE TABLE IF NOT EXISTS `partner_transactions` (`uuid` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `amount` REAL, `type` TEXT NOT NULL, `merchant` TEXT, `category` TEXT, `account` TEXT, `balance` REAL, `source` TEXT NOT NULL, `shared` INTEGER NOT NULL, `excludedFromStats` INTEGER NOT NULL, PRIMARY KEY(`uuid`));
+CREATE TABLE IF NOT EXISTS `partner_transactions` (`uuid` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `amount` REAL, `type` TEXT NOT NULL, `merchant` TEXT, `category` TEXT, `account` TEXT, `source` TEXT NOT NULL, `shared` INTEGER NOT NULL, `excludedFromStats` INTEGER NOT NULL, PRIMARY KEY(`uuid`));
 CREATE TABLE IF NOT EXISTS `shared_rules` (`merchantKey` TEXT NOT NULL, `shared` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`merchantKey`));
 CREATE TABLE IF NOT EXISTS `pending_deletes` (`uuid` TEXT NOT NULL, PRIMARY KEY(`uuid`));

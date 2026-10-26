@@ -16,7 +16,7 @@ class CloudMappingTest {
     private val row = CloudTransaction(
         uuid = "7f0c1a2e-0000-4000-8000-000000000001", timestamp = 1_785_487_020_000,
         amount = 2_431.0, type = TxType.PURCHASE, merchant = "Inmart",
-        category = Category.GROCERIES, account = "Kaspi Gold", balance = 760.0,
+        category = Category.GROCERIES, account = "Kaspi Gold",
         source = TxSource.RECEIPT, shared = true, excludedFromStats = false
     )
 
@@ -30,7 +30,7 @@ class CloudMappingTest {
 
     @Test
     fun `nulls survive the round trip`() {
-        val bare = row.copy(amount = null, merchant = null, category = null, account = null, balance = null)
+        val bare = row.copy(amount = null, merchant = null, category = null, account = null)
         assertEquals(bare, cloudTransactionFrom(JSONObject(bare.toJson().toString())))
     }
 

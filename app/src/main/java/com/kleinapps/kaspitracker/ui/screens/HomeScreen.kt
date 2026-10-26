@@ -32,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
@@ -72,7 +71,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.kleinapps.kaspitracker.data.AccountBalance
 import com.kleinapps.kaspitracker.ui.components.AnimatedMoney
 import com.kleinapps.kaspitracker.ui.components.AppCard
 import com.kleinapps.kaspitracker.ui.components.BarChart
@@ -122,7 +120,6 @@ fun HomeScreen(
     onAddManual: () -> Unit,
     onOpenCategorize: () -> Unit,
     onOpenRules: () -> Unit,
-    onOpenSubscriptions: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenBatchImport: () -> Unit,
     viewModel: HomeViewModel = viewModel()
@@ -218,10 +215,6 @@ fun HomeScreen(
                         )
                     }
                 }
-            }
-
-            if (state.balances.isNotEmpty()) {
-                item { BalanceCard(state.balances, state.balanceHistory) }
             }
 
             if (state.uncategorizedCount > 0) {
@@ -325,13 +318,6 @@ fun HomeScreen(
                         title = "Импорт чеков",
                         subtitle = "Загрузить сразу пачку PDF из Загрузок",
                         onClick = onOpenBatchImport
-                    )
-                    NavigationTile(
-                        tint = Pink,
-                        icon = Icons.Filled.Autorenew,
-                        title = "Подписки",
-                        subtitle = "Регулярные платежи и их цена в месяц",
-                        onClick = onOpenSubscriptions
                     )
                     NavigationTile(
                         tint = Amber,
@@ -654,95 +640,6 @@ private fun ShareBar(fraction: Float, color: Color) {
  * Last known balance of every Kaspi card, drawn as the card itself rather than
  * as another list row — a plastic-looking panel with a contact pad, so the
  * number checked most often owns a real object on the screen.
- */
-@Composable
-private fun BalanceCard(
-    balances: List<AccountBalance>,
-    history: Map<String, List<Double>>
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        balances.forEach { balance ->
-            val shape = RoundedCornerShape(24.dp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(14.dp, shape, ambientColor = Mint, spotColor = Mint)
-                    .clip(shape)
-                    .background(
-                        Brush.linearGradient(listOf(Color(0xFF10281F), Color(0xFF123830)))
-                    )
-            ) {
-                GlowOrbs(primary = Mint, secondary = Cyan)
-                Box(modifier = Modifier.matchParentSize().topHighlight(alpha = 0.10f))
-
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Contact pad: the one detail that makes a rectangle
-                        // read as a bank card at a glance.
-                        Box(
-                            modifier = Modifier
-                                .size(width = 30.dp, height = 22.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFFE7C26B), Color(0xFFB98F32))
-                                    )
-                                )
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = balance.account,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Pill(
-                            text = "доступно",
-                            tint = Mint,
-                            contentColor = Mint,
-                            background = Mint.copy(alpha = 0.18f)
-                        )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            AnimatedMoney(
-                                amount = balance.balance,
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = Color.White
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "обновлено ${formatDayHeader(balance.timestamp).lowercase()}, " +
-                                    formatTime(balance.timestamp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.62f)
-                            )
-                        }
-                        // How the balance has been moving, drawn small enough
-                        // to sit inside the card without competing with it.
-                        history[balance.account]?.takeIf { it.size >= 2 }?.let { points ->
-                            Sparkline(
-                                values = points,
-                                color = Mint,
-                                modifier = Modifier
-                                    .width(96.dp)
-                                    .height(34.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Raised when Kaspi has been quiet for longer than the user's own rhythm
- * explains — almost always the OEM battery manager having killed the listener.
- * The app cannot fix that on its own, so it says so instead of pretending the
- * empty history is real.
  */
 @Composable
 private fun SilentListenerBanner(hours: Int, onOpenSettings: () -> Unit) {

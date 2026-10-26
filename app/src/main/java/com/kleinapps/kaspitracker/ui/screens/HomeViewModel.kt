@@ -3,7 +3,6 @@ package com.kleinapps.kaspitracker.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.kleinapps.kaspitracker.data.AccountBalance
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TransactionRepository
@@ -35,9 +34,6 @@ data class HomeUiState(
     val topCategories: List<CategorySum> = emptyList(),
     val recent: List<Transaction> = emptyList(),
     val uncategorizedCount: Int = 0,
-    val balances: List<AccountBalance> = emptyList(),
-    /** Recent balance readings per card, oldest first — drawn as a trend line. */
-    val balanceHistory: Map<String, List<Double>> = emptyMap(),
     val forecast: MonthForecast? = null,
     /**
      * Spending over the same stretch of last month, so "272 239 ₸" can be read
@@ -89,10 +85,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<HomeUiState> = combine(
         repo.observeBetween(windowStart, Long.MAX_VALUE),
         repo.observeRecent(6),
-        repo.observeUncategorized(),
-        repo.observeBalances(),
-        repo.observeBalanceHistory()
-    ) { window, recent, uncategorized, balances, balanceHistory ->
+        repo.observeUncategorized()
+    ) { window, recent, uncategorized ->
         val now = System.currentTimeMillis()
         val todayStart = startOfDay(now)
         val monthStart = startOfMonth(now)
@@ -123,8 +117,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 .take(3),
             recent = recent,
             uncategorizedCount = uncategorized.size,
-            balances = balances.sortedByDescending { it.timestamp },
-            balanceHistory = balanceHistory,
             forecast = forecastMonth(monthSpendings.sumOf { it.amount ?: 0.0 }, now),
             silentForHours = listenerSilence(now),
             sameSpanLastMonth = previousSpan.takeIf { it > 0 }

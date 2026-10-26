@@ -16,7 +16,6 @@ data class CloudTransaction(
     val merchant: String?,
     val category: Category?,
     val account: String?,
-    val balance: Double?,
     val source: TxSource,
     val shared: Boolean,
     val excludedFromStats: Boolean,

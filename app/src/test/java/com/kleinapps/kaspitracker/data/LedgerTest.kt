@@ -45,26 +45,4 @@ class LedgerTest {
         assertTrue(tx("b", 1).isCountedSpending)
         assertTrue(tx("c", 1).copy(type = TxType.TRANSFER_IN).isCountedIncome)
     }
-
-    @Test
-    fun `latest balance per account comes from the newest reading`() {
-        val rows = listOf(
-            tx("a", 1).copy(account = "Kaspi Gold", balance = 100.0),
-            tx("b", 2).copy(account = "Kaspi Gold", balance = 50.0),
-            tx("c", 1).copy(account = "Kaspi Депозит", balance = 1_000.0),
-            tx("d", 3).copy(account = null, balance = 7.0)
-        )
-        val balances = latestBalances(rows).associate { it.account to it.balance }
-
-        assertEquals(mapOf("Kaspi Gold" to 50.0, "Kaspi Депозит" to 1_000.0), balances)
-    }
-
-    @Test
-    fun `balance history is oldest first per card`() {
-        val rows = listOf(
-            tx("a", 2).copy(account = "Kaspi Gold", balance = 50.0),
-            tx("b", 1).copy(account = "Kaspi Gold", balance = 100.0)
-        )
-        assertEquals(listOf(100.0, 50.0), balanceHistory(rows)["Kaspi Gold"])
-    }
 }

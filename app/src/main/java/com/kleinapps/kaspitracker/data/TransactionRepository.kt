@@ -47,25 +47,8 @@ class TransactionRepository(
     /** Learned merchant -> category rules, for the settings/debug UI. */
     fun observeCategoryRules(): Flow<List<CategoryRule>> = ruleDao.observeAll()
 
-    /** Last known balance of every card, from the "Доступно" line of pushes. */
-    fun observeBalances(): Flow<List<AccountBalance>> = dao.observeBalances()
-
-    /** Recent balance readings per card, oldest first, for the card trend line. */
-    fun observeBalanceHistory(): Flow<Map<String, List<Double>>> =
-        dao.observeBalancePoints().map { points ->
-            points
-                .groupBy { it.account }
-                .mapValues { (_, readings) ->
-                    readings.sortedBy { it.timestamp }.takeLast(12).map { it.balance }
-                }
-        }
-
     /** When Kaspi pushes arrived — the watchdog's sample of the normal rhythm. */
     suspend fun notificationTimestamps(): List<Long> = dao.getNotificationTimestamps()
-
-    /** Recurring payments (subscriptions, memberships) found in the history. */
-    fun observeSubscriptions(): Flow<List<Subscription>> =
-        dao.observeSpendings().map { SubscriptionDetector.detect(it) }
 
     /** Forgets a learned rule; the merchant goes back to keyword matching. */
     suspend fun forgetRule(merchantKey: String) = ruleDao.delete(merchantKey)

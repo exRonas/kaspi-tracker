@@ -44,7 +44,7 @@ class SyncEngineTest {
 
     private fun partnerRow(i: Int, deleted: Boolean = false) = CloudTransaction(
         uuid = "p-%05d".format(i), timestamp = i.toLong(), amount = 100.0, type = TxType.PURCHASE,
-        merchant = "Shop $i", category = null, account = null, balance = null,
+        merchant = "Shop $i", category = null, account = null,
         source = TxSource.NOTIFICATION, shared = i % 2 == 0, excludedFromStats = false,
         deleted = deleted
     )
@@ -93,7 +93,6 @@ class SyncEngineTest {
         assertEquals(local.uuid, sent.uuid)
         assertEquals(true, sent.shared)
         assertEquals(true, sent.excludedFromStats)
-        assertEquals(1_200.0, sent.balance)
         assertEquals("Kaspi Gold", sent.account)
     }
 

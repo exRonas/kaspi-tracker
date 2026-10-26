@@ -39,24 +39,6 @@ class FakeTransactionDao : TransactionDao {
 
     override suspend fun getAllOnce(): List<Transaction> = rows.value.sortedBy { it.timestamp }
 
-    override fun observeBalances(): Flow<List<AccountBalance>> =
-        rows.map { list ->
-            list.filter { it.balance != null && it.account != null }
-                .groupBy { it.account!! }
-                .map { (account, txs) ->
-                    val newest = txs.maxBy { it.timestamp }
-                    AccountBalance(account, newest.balance!!, newest.timestamp)
-                }
-        }
-
-    override fun observeBalancePoints(): Flow<List<AccountBalance>> =
-        rows.map { list ->
-            list.filter { it.balance != null && it.account != null }
-                .sortedByDescending { it.timestamp }
-                .take(60)
-                .map { AccountBalance(it.account!!, it.balance!!, it.timestamp) }
-        }
-
     override suspend fun findNotificationForReceipt(
         amount: Double,
         timestamp: Long,
@@ -68,12 +50,6 @@ class FakeTransactionDao : TransactionDao {
                 it.source == TxSource.NOTIFICATION && it.amount == amount && it.timestamp in from..to
             }
             .minByOrNull { kotlin.math.abs(it.timestamp - timestamp) }
-
-    override fun observeSpendings(): Flow<List<Transaction>> =
-        rows.map { list ->
-            list.filter { it.amount != null && it.type.isSpending && !it.excludedFromStats }
-                .sortedBy { it.timestamp }
-        }
 
     override suspend fun getNotificationTimestamps(): List<Long> =
         rows.value.filter { it.source == TxSource.NOTIFICATION }

@@ -7,13 +7,6 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
-/** Last known balance of one card, from the newest push that carried one. */
-data class AccountBalance(
-    val account: String,
-    val balance: Double,
-    val timestamp: Long
-)
-
 @Dao
 interface TransactionDao {
 
@@ -100,34 +93,6 @@ interface TransactionDao {
     fun observeAccounts(): Flow<List<String>>
 
     /**
-     * Last known balance of every card. SQLite returns the row that produced
-     * MAX(timestamp) for the bare columns, which is exactly the newest push.
-     */
-    @Query(
-        """
-        SELECT account AS account, balance AS balance, MAX(timestamp) AS timestamp
-        FROM transactions
-        WHERE balance IS NOT NULL AND account IS NOT NULL
-        GROUP BY account
-        """
-    )
-    fun observeBalances(): Flow<List<AccountBalance>>
-
-    /**
-     * Recent balance readings, newest first — the raw material for the trend
-     * line on a card. Capped because the card only ever draws a dozen points.
-     */
-    @Query(
-        """
-        SELECT account AS account, balance AS balance, timestamp AS timestamp
-        FROM transactions
-        WHERE balance IS NOT NULL AND account IS NOT NULL
-        ORDER BY timestamp DESC LIMIT 60
-        """
-    )
-    fun observeBalancePoints(): Flow<List<AccountBalance>>
-
-    /**
      * An already recorded push for the same payment a receipt is being imported
      * for: same amount, a few minutes apart. Kaspi sends the push instantly and
      * the receipt is shared later, so both describe one operation.
@@ -172,17 +137,6 @@ interface TransactionDao {
         """
     )
     suspend fun getRecentWithAccount(): List<Transaction>
-
-    /** Spending rows of one merchant, oldest first — used to spot subscriptions. */
-    @Query(
-        """
-        SELECT * FROM transactions
-        WHERE amount IS NOT NULL AND excludedFromStats = 0
-          AND type IN ('PURCHASE', 'TRANSFER_OUT')
-        ORDER BY timestamp ASC
-        """
-    )
-    fun observeSpendings(): Flow<List<Transaction>>
 
     /** Detects re-import of the same receipt (same moment, amount and source). */
     @Query(
