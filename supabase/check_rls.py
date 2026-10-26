@@ -113,24 +113,24 @@ def main():
     hijack = dict(row, merchant="hijacked")
     status, body = call("POST", "/rest/v1/transactions", b, [hijack],
                         prefer="resolution=merge-duplicates,return=minimal")
-    assert status in (401, 403, 409), f"partner overwrote A's row via upsert: {status} {body}"
-    status, body = call("PATCH", f"/rest/v1/transactions?id=eq.{row['id']}", b,
+    # Rows are keyed per user: B's upsert with A's id lands as B's own row.
+    status, body = call("PATCH", f"/rest/v1/transactions?id=eq.{row['id']}&user_id=eq.{a_id}", b,
                         {"merchant": "hijacked"}, prefer="return=representation")
     assert body == [], f"partner updated A's row: {body}"
-    assert rows(a, f"transactions?id=eq.{row['id']}")[0]["merchant"] == "test A"
+    assert rows(a, f"transactions?id=eq.{row['id']}&user_id=eq.{a_id}")[0]["merchant"] == "test A"
 
     # 5b. mark_deleted only touches the caller's own rows.
     rpc(b, "mark_deleted", {"ids": [row["id"]]})
-    assert rows(a, f"transactions?id=eq.{row['id']}")[0]["deleted"] is False
+    assert rows(a, f"transactions?id=eq.{row['id']}&user_id=eq.{a_id}")[0]["deleted"] is False
     rpc(a, "mark_deleted", {"ids": [row["id"]]})
-    assert rows(b, f"transactions?id=eq.{row['id']}")[0]["deleted"] is True
+    assert rows(b, f"transactions?id=eq.{row['id']}&user_id=eq.{a_id}")[0]["deleted"] is True
 
     # 5c. Two users may hold the same operation id without blocking each other.
     twin = dict(row, merchant="test C")
     status, body = call("POST", "/rest/v1/transactions?on_conflict=user_id,id", c, [twin],
                         prefer="resolution=merge-duplicates,return=minimal")
     assert status == 201, f"same id under another user was refused: {status} {body}"
-    assert rows(a, f"transactions?id=eq.{row['id']}")[0]["merchant"] == "test A"
+    assert rows(a, f"transactions?id=eq.{row['id']}&user_id=eq.{a_id}")[0]["merchant"] == "test A"
 
     # 6. Guessing is rate limited.
     results = [rpc(c, "redeem_pair_code", {"p_code": "QQQQQQQQ"})[1] for _ in range(11)]
