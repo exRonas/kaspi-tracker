@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme used before Compose takes over. Kept dark to avoid
-         a white flash on launch. The real styling lives in KaspiTrackerTheme. -->
-    <style name="Theme.KaspiTracker" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">@color/background</item>
-        <item name="android:navigationBarColor">@color/background</item>
+    <!-- Base application theme used before Compose takes over: the window is
+         already the paper colour of the current mode, so launch shows no flash.
+         The real styling lives in KaspiTrackerTheme. -->
+    <style name="Theme.KaspiTracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowBackground">@color/background</item>
     </style>
 </resources>

@@ -28,7 +28,12 @@ class CategorizeViewModel(app: Application) : AndroidViewModel(app) {
      * remembered for this merchant, so the same shop is categorized on its own
      * next time and any other queued rows for it are cleared at once.
      */
-    fun assign(tx: Transaction, category: Category) {
-        viewModelScope.launch { repo.assignCategory(tx, category) }
+    fun assign(tx: Transaction, category: Category, shared: Boolean) {
+        viewModelScope.launch {
+            repo.assignCategory(tx, category)
+            // "Shared" is remembered for the merchant too; "own" is the default
+            // and teaches nothing, so an existing shared hint survives.
+            if (shared) repo.setShared(listOf(tx.id), true)
+        }
     }
 }

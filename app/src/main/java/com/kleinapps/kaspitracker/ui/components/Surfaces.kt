@@ -1,236 +1,245 @@
 package com.kleinapps.kaspitracker.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ripple
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.kleinapps.kaspitracker.ui.theme.Kaspi
+import com.kleinapps.kaspitracker.ui.theme.Radius
 
 /**
- * The one card shape used everywhere: a hairline border instead of a drop
- * shadow, so cards read as distinct panels on both themes without the muddy
- * grey halo Material elevation gives on dark backgrounds.
+ * Card: a tone step up from the background. No border, no shadow — the design
+ * separates surfaces by tone alone.
  */
 @Composable
 fun AppCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    contentPadding: Dp = 18.dp,
-    accent: Color? = null,
-    interactionSource: MutableInteractionSource? = null,
+    contentPadding: Dp = 16.dp,
+    color: Color = Kaspi.colors.surf,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(22.dp)
-    val surface = MaterialTheme.colorScheme.surface
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(shape)
-            // A card lit from the top edge, tinted by its own accent, instead of
-            // one flat fill repeated down the whole screen.
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        accent?.let { surface.blendWith(it, 0.07f) } ?: surface,
-                        surface
-                    )
-                )
-            )
-            .border(
-                BorderStroke(
-                    1.dp,
-                    accent?.copy(alpha = 0.35f) ?: MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
-                ),
-                shape
-            )
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = interactionSource ?: MutableInteractionSource(),
-                        indication = ripple(),
-                        onClick = onClick
-                    )
-                } else {
-                    Modifier
-                }
-            )
+            .clip(RoundedCornerShape(Radius.card))
+            .background(color)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(contentPadding),
         content = content
     )
 }
 
-/** Mixes [other] into this colour by [amount] — used for the accent card wash. */
-private fun Color.blendWith(other: Color, amount: Float): Color = Color(
-    red = red + (other.red - red) * amount,
-    green = green + (other.green - green) * amount,
-    blue = blue + (other.blue - blue) * amount,
-    alpha = alpha
-)
-
-/**
- * Section title with a short accent bar in front of it. Cheap, but it is what
- * turns a stack of text into a laid-out page.
- */
+/** Title of a card or a group, with an optional text action on the right ("Вся история"). */
 @Composable
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
-    accent: Color = MaterialTheme.colorScheme.primary,
-    trailing: @Composable (() -> Unit)? = null
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+    trailing: @Composable (RowScope.() -> Unit)? = null
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 4.dp, height = 18.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(accent)
-        )
-        Spacer(Modifier.width(10.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = Kaspi.type.titleM,
+            color = Kaspi.colors.ink,
             modifier = Modifier.weight(1f)
         )
-        trailing?.invoke()
+        if (actionLabel != null && onAction != null) {
+            Text(
+                text = actionLabel,
+                style = Kaspi.type.bodyM.copy(fontWeight = Kaspi.type.titleM.fontWeight),
+                color = Kaspi.colors.accent,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.bar))
+                    .clickable(onClick = onAction)
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
+            )
+        }
+        trailing?.invoke(this)
     }
 }
 
 /**
- * Small labelled figure — "Сегодня / −1 530 ₸". Used in rows of two or three
- * inside a card or on the hero.
+ * Top of a tab: a small kicker line ("Понедельник, 26 октября") over a serif
+ * title, with icon actions on the right.
  */
+@Composable
+fun ScreenHeader(
+    kicker: String,
+    title: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = kicker, style = Kaspi.type.bodyS, color = Kaspi.colors.ink2)
+            Spacer(Modifier.height(4.dp))
+            Text(text = title, style = Kaspi.type.headline, color = Kaspi.colors.ink)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, content = actions)
+    }
+}
+
+/** Small labelled number in a tile: "Потрачено за год / −3 201 820 ₸". */
 @Composable
 fun StatTile(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface,
-    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    background: Color? = null
+    valueColor: Color = Kaspi.colors.ink,
+    caption: String? = null
 ) {
     Column(
         modifier = modifier
-            .then(
-                if (background != null) {
-                    Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(background)
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                } else {
-                    Modifier
-                }
-            ),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .clip(RoundedCornerShape(Radius.field))
+            .background(Kaspi.colors.surf)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Text(text = label, style = MaterialTheme.typography.labelMedium, color = labelColor)
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            color = valueColor
-        )
+        Text(text = label, style = Kaspi.type.label, color = Kaspi.colors.ink2, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(text = value, style = Kaspi.type.amountM, color = valueColor, maxLines = 1)
+        caption?.let {
+            Text(text = it, style = Kaspi.type.label, color = Kaspi.colors.ink3, maxLines = 1)
+        }
     }
 }
 
-/** Round tinted badge holding an icon — the visual anchor of tiles and rows. */
+/** Glyph on its colour at 16 % — tool tiles, banners, list leading icons. */
 @Composable
 fun IconBadge(
     icon: ImageVector,
     tint: Color,
     modifier: Modifier = Modifier,
-    size: Dp = 44.dp
+    size: Dp = 40.dp
 ) {
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.12f))
-                )
-            ),
+            .background(Kaspi.colors.tint(tint), RoundedCornerShape(Radius.icon)),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(size * 0.5f)
-        )
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.55f))
     }
 }
 
-/** Row that opens another screen: badge, two lines of text, chevron. */
+/** Tile in the two-column "Инструменты" grid: glyph, title, one or two lines of explanation. */
 @Composable
-fun NavigationTile(
+fun ToolTile(
     icon: ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tint: Color = MaterialTheme.colorScheme.primary
+    modifier: Modifier = Modifier
 ) {
-    val press = rememberPressSource()
-    AppCard(
-        modifier = modifier.pressScale(press),
-        onClick = onClick,
-        interactionSource = press,
-        contentPadding = 14.dp,
-        accent = tint
+    AppCard(modifier = modifier, onClick = onClick) {
+        Icon(icon, contentDescription = null, tint = Kaspi.colors.accent, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(16.dp))
+        Text(text = title, style = Kaspi.type.titleM, color = Kaspi.colors.ink, maxLines = 2)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            style = Kaspi.type.bodyS,
+            color = Kaspi.colors.ink2,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** A plain row in a card: glyph, text, chevron — "Показать мой код", "Журнал уведомлений". */
+@Composable
+fun LinkRow(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = Kaspi.colors.ink2,
+    titleColor: Color = Kaspi.colors.ink,
+    showChevron: Boolean = true
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            IconBadge(icon = icon, tint = tint)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(text = title, style = Kaspi.type.bodyL, color = titleColor, modifier = Modifier.weight(1f))
+        if (showChevron) {
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                tint = Kaspi.colors.ink3
             )
+        }
+    }
+}
+
+/**
+ * Warning on a warm tint: what is wrong, why it matters, one way to fix it.
+ * [tint] defaults to the warning colour; the review banner uses the accent.
+ */
+@Composable
+fun Banner(
+    icon: ImageVector,
+    title: String,
+    text: String,
+    modifier: Modifier = Modifier,
+    tint: Color = Kaspi.colors.warn,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    AppCard(modifier = modifier, color = Kaspi.colors.tint(tint, 0.12f)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = Kaspi.type.bodyL.copy(fontWeight = Kaspi.type.titleM.fontWeight), color = Kaspi.colors.ink)
+                Spacer(Modifier.height(2.dp))
+                Text(text = text, style = Kaspi.type.bodyS, color = Kaspi.colors.ink2)
+                if (actionLabel != null && onAction != null) {
+                    Spacer(Modifier.height(12.dp))
+                    PrimaryButton(text = actionLabel, onClick = onAction, color = tint)
+                }
+            }
         }
     }
 }
@@ -242,24 +251,32 @@ fun EmptyState(
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
-    tint: Color = MaterialTheme.colorScheme.primary
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
 ) {
     Column(
-        modifier = modifier.padding(horizontal = 32.dp),
+        modifier = modifier.padding(horizontal = 32.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        IconBadge(icon = icon, tint = tint, size = 64.dp)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        IconBadge(icon = icon, tint = Kaspi.colors.accent, size = 56.dp)
+        Spacer(Modifier.height(4.dp))
+        Text(text = title, style = Kaspi.type.titleM, color = Kaspi.colors.ink, textAlign = TextAlign.Center)
+        Text(text = subtitle, style = Kaspi.type.bodyM, color = Kaspi.colors.ink2, textAlign = TextAlign.Center)
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction) { Text(actionLabel) }
+        }
     }
+}
+
+/** Hairline between rows inside a card, inset past the leading icon. */
+@Composable
+fun RowDivider(modifier: Modifier = Modifier, start: Dp = 0.dp) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = start)
+            .height(1.dp)
+            .background(Kaspi.colors.line)
+    )
 }

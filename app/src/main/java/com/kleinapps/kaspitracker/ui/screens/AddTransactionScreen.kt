@@ -1,23 +1,27 @@
 package com.kleinapps.kaspitracker.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -28,19 +32,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.TxType
 import com.kleinapps.kaspitracker.ui.components.AmountField
 import com.kleinapps.kaspitracker.ui.components.CategoryPickerGrid
-import com.kleinapps.kaspitracker.ui.components.SwitchRow
-import com.kleinapps.kaspitracker.ui.components.label
+import com.kleinapps.kaspitracker.ui.components.EditableTypes
+import com.kleinapps.kaspitracker.ui.components.FieldLabel
+import com.kleinapps.kaspitracker.ui.components.KaspiTextField
+import com.kleinapps.kaspitracker.ui.components.PrimaryButton
+import com.kleinapps.kaspitracker.ui.components.SegmentedChoice
+import com.kleinapps.kaspitracker.ui.components.SharedChoice
+import com.kleinapps.kaspitracker.ui.theme.Kaspi
+import com.kleinapps.kaspitracker.ui.theme.Radius
 import com.kleinapps.kaspitracker.util.AmountExpression
-import java.text.SimpleDateFormat
+import com.kleinapps.kaspitracker.util.formatDayHeader
+import com.kleinapps.kaspitracker.util.formatTime
 import java.util.Calendar
-import java.util.Locale
 import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,75 +82,76 @@ fun AddTransactionScreen(
             // Without this the category grid and the save button below it are
             // unreachable on a short screen.
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .imePadding(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Тип операции",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(TxType.PURCHASE, TxType.TRANSFER_OUT, TxType.TRANSFER_IN).forEach { t ->
-                FilterChip(
-                    selected = type == t,
-                    onClick = { type = t },
-                    label = { Text(t.label()) }
-                )
-            }
-        }
-
         AmountField(
             value = amountText,
             onValueChange = { amountText = it },
-            computed = amountValue,
-            modifier = Modifier.fillMaxWidth()
+            computed = amountValue
         )
-
-        OutlinedTextField(
-            value = merchant,
-            onValueChange = { merchant = it },
-            label = { Text("Кому / у кого (необязательно)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Text(
-            text = "Категория (необязательно)",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = "Если не выбрать — подберётся по названию, а незнакомые попадут в «Разобрать».",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        CategoryPickerGrid(selected = category, onSelect = { picked ->
-            category = if (category == picked) null else picked
-        })
-
-        SwitchRow(
-            title = "Общее",
-            subtitle = "Трата на вас двоих — попадёт в «Вместе»",
-            checked = shared,
-            onCheckedChange = { shared = it }
-        )
-
-        Text(
-            text = "Дата и время",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { showDatePicker = true }) {
-                Text(SimpleDateFormat("d MMMM yyyy", Locale("ru")).format(timestamp))
-            }
-            OutlinedButton(onClick = { showTimePicker = true }) {
-                Text(SimpleDateFormat("HH:mm", Locale.getDefault()).format(timestamp))
+        Column {
+            FieldLabel("Тип операции")
+            SegmentedChoice(options = EditableTypes, selected = type, onSelect = { type = it })
+        }
+        Column {
+            FieldLabel("Чья трата")
+            SharedChoice(shared = shared, onChange = { shared = it })
+        }
+        Column {
+            FieldLabel("Кому / у кого (необязательно)")
+            KaspiTextField(
+                value = merchant,
+                onValueChange = { merchant = it },
+                placeholder = "Например, рынок «Зелёный базар»"
+            )
+        }
+        Column {
+            FieldLabel("Дата и время")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.field))
+                    .background(Kaspi.colors.bg)
+                    .border(1.dp, Kaspi.colors.line, RoundedCornerShape(Radius.field))
+                    .clickable { showDatePicker = true }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.Event, contentDescription = null, tint = Kaspi.colors.ink2)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "${formatDayHeader(timestamp)}, ${formatTime(timestamp)}",
+                    style = Kaspi.type.bodyL,
+                    color = Kaspi.colors.ink,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "время",
+                    style = Kaspi.type.label,
+                    color = Kaspi.colors.accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.bar))
+                        .clickable { showTimePicker = true }
+                        .padding(4.dp)
+                )
             }
         }
-
-        Button(
+        Column {
+            FieldLabel("Категория (необязательно)")
+            CategoryPickerGrid(selected = category, onSelect = { picked ->
+                category = if (category == picked) null else picked
+            })
+            Text(
+                text = "Если не выбрать — подберётся по названию, а незнакомые попадут в «Разобрать»",
+                style = Kaspi.type.label,
+                color = Kaspi.colors.ink2,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        PrimaryButton(
+            text = "Сохранить",
             onClick = {
                 viewModel.save(
                     amount = amountValue!!,
@@ -152,9 +165,7 @@ fun AddTransactionScreen(
             },
             enabled = canSave,
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Сохранить")
-        }
+        )
     }
 
     if (showDatePicker) {
@@ -167,6 +178,7 @@ fun AddTransactionScreen(
                         timestamp = combineDateKeepTime(pickedDate, timestamp)
                     }
                     showDatePicker = false
+                    showTimePicker = true
                 }) { Text("ОК") }
             },
             dismissButton = {

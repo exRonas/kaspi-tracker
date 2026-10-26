@@ -6,23 +6,31 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -31,19 +39,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kleinapps.kaspitracker.data.Backup
-import com.kleinapps.kaspitracker.ui.components.AppCard
-import com.kleinapps.kaspitracker.ui.components.SectionHeader
 import com.kleinapps.kaspitracker.data.TransactionRepository
 import com.kleinapps.kaspitracker.service.AutoBackup
+import com.kleinapps.kaspitracker.ui.components.AppCard
+import com.kleinapps.kaspitracker.ui.components.PrimaryButton
+import com.kleinapps.kaspitracker.ui.components.SecondaryButton
+import com.kleinapps.kaspitracker.ui.theme.Kaspi
+import com.kleinapps.kaspitracker.ui.theme.Radius
 import com.kleinapps.kaspitracker.util.formatDayHeader
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class BackupViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -126,53 +137,52 @@ fun BackupScreen(viewModel: BackupViewModel = viewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        AppCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeader(title = "Что попадает в бэкап")
-                Text(
-                    text = "Все операции и выученные правила категорий — " +
-                        "одним JSON-файлом.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = autoBackupStatus(context),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Button(
-            onClick = { viewModel.export(context) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Сохранить бэкап")
-        }
-
-        OutlinedButton(
-            onClick = { picker.launch(arrayOf("*/*")) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Восстановить из файла")
-        }
-
         Text(
-            text = "Восстановление добавляет недостающие операции и не трогает те, что уже есть — " +
-                "один и тот же файл можно применять сколько угодно раз.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "Что попадает в бэкап: все операции и выученные правила категорий — одним JSON-файлом.",
+            style = Kaspi.type.bodyS,
+            color = Kaspi.colors.ink2,
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
-
-        status?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
+        AppCard {
+            CardTitle(Icons.Outlined.CloudUpload, "Сохранить бэкап")
+            Spacer(Modifier.height(12.dp))
+            PrimaryButton(text = "Сохранить бэкап", onClick = { viewModel.export(context) }, modifier = Modifier.fillMaxWidth())
         }
+        AppCard {
+            CardTitle(Icons.Outlined.History, "Восстановить из файла")
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Можно применять повторно — операции, которые уже есть, не задвоятся.",
+                style = Kaspi.type.bodyS,
+                color = Kaspi.colors.ink2
+            )
+            Spacer(Modifier.height(12.dp))
+            SecondaryButton(text = "Выбрать файл", onClick = { picker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth())
+        }
+        status?.let {
+            Text(text = it, style = Kaspi.type.bodyM, color = Kaspi.colors.accent, modifier = Modifier.padding(horizontal = 4.dp))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Kaspi.colors.line, RoundedCornerShape(Radius.field))
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Kaspi.colors.ink2, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(text = autoBackupStatus(context), style = Kaspi.type.bodyS, color = Kaspi.colors.ink2)
+        }
+    }
+}
+
+@Composable
+private fun CardTitle(icon: ImageVector, title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = Kaspi.colors.accent, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text = title, style = Kaspi.type.titleM, color = Kaspi.colors.ink)
     }
 }

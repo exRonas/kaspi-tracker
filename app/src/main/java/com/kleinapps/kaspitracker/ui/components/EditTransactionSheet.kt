@@ -1,24 +1,23 @@
 package com.kleinapps.kaspitracker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,132 +30,134 @@ import androidx.compose.ui.unit.dp
 import com.kleinapps.kaspitracker.data.Category
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TxType
+import com.kleinapps.kaspitracker.ui.theme.Kaspi
 import com.kleinapps.kaspitracker.util.AmountExpression
+import com.kleinapps.kaspitracker.util.formatFullDate
+import com.kleinapps.kaspitracker.util.formatMoney
+import com.kleinapps.kaspitracker.util.formatTime
 
-/**
- * Bottom sheet for editing any transaction: amount, merchant, type, category,
- * account. Saving returns the updated copy via [onSave].
- */
+/** Operation types offered in forms, in display order. */
+val EditableTypes = listOf(TxType.PURCHASE to "Покупка", TxType.TRANSFER_OUT to "Перевод", TxType.TRANSFER_IN to "Пополнение")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditTransactionSheet(
     tx: Transaction,
     onSave: (Transaction) -> Unit,
+    onDelete: (Transaction) -> Unit,
     onDismiss: () -> Unit
 ) {
     var amountText by remember { mutableStateOf(tx.amount?.let { formatEditable(it) } ?: "") }
     var merchant by remember { mutableStateOf(tx.merchant ?: "") }
     var account by remember { mutableStateOf(tx.account ?: "") }
-    var type by remember { mutableStateOf(tx.type) }
+    var type by remember { mutableStateOf(if (tx.type == TxType.UNKNOWN) TxType.PURCHASE else tx.type) }
     var category by remember { mutableStateOf(tx.category) }
     var shared by remember { mutableStateOf(tx.shared) }
     var excluded by remember { mutableStateOf(tx.excludedFromStats) }
+    var confirmingDelete by remember { mutableStateOf(false) }
 
     // Editing an existing amount is where "/2" and "-800" earn their keep: the
     // stored amount is the base they continue from.
     val amountValue = AmountExpression.evaluate(amountText, base = tx.amount)
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Kaspi.colors.surf) {
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Редактировать операцию",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Column {
+                Text(text = "Редактировать операцию", style = Kaspi.type.titleL, color = Kaspi.colors.ink)
+                Text(
+                    text = "${formatFullDate(tx.timestamp)}, ${formatTime(tx.timestamp)}",
+                    style = Kaspi.type.bodyS,
+                    color = Kaspi.colors.ink2
+                )
+            }
 
             AmountField(
                 value = amountText,
                 onValueChange = { amountText = it },
                 computed = amountValue,
                 label = "Сумма, ${tx.currency}",
-                base = tx.amount,
-                modifier = Modifier.fillMaxWidth()
+                base = tx.amount
             )
+            SegmentedChoice(options = EditableTypes, selected = type, onSelect = { type = it })
+            SharedChoice(shared = shared, onChange = { shared = it })
 
-            OutlinedTextField(
-                value = merchant,
-                onValueChange = { merchant = it },
-                label = { Text("Мерчант / кому") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = account,
-                onValueChange = { account = it },
-                label = { Text("Счёт (например, Kaspi Gold)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(
-                text = "Тип",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(TxType.PURCHASE, TxType.TRANSFER_OUT, TxType.TRANSFER_IN).forEach { t ->
-                    FilterChip(
-                        selected = type == t,
-                        onClick = { type = t },
-                        label = { Text(t.label()) }
-                    )
-                }
+            Column {
+                FieldLabel("Мерчант / кому")
+                KaspiTextField(value = merchant, onValueChange = { merchant = it })
             }
-
-            Text(
-                text = "Категория",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            CategoryPickerGrid(
-                selected = category,
-                onSelect = { category = it }
-            )
-
-            SwitchRow(
-                title = "Общее",
-                subtitle = "Трата на вас двоих — попадёт в «Вместе»",
-                checked = shared,
-                onCheckedChange = { shared = it }
-            )
+            Column {
+                FieldLabel("Счёт (например, Kaspi Gold)")
+                KaspiTextField(value = account, onValueChange = { account = it })
+            }
+            Column {
+                FieldLabel("Категория")
+                CategoryPickerGrid(selected = category, onSelect = { category = it })
+            }
             SwitchRow(
                 title = "Не учитывать в статистике",
-                subtitle = "Остаётся в истории, но не входит в суммы",
+                subtitle = "Переводы между своими картами, возвраты",
                 checked = excluded,
                 onCheckedChange = { excluded = it }
             )
 
-            Spacer(Modifier.height(4.dp))
-            Button(
-                onClick = {
-                    onSave(
-                        tx.copy(
-                            amount = amountValue ?: tx.amount,
-                            merchant = merchant.takeIf { it.isNotBlank() },
-                            account = account.takeIf { it.isNotBlank() },
-                            type = type,
-                            category = category ?: Category.OTHER,
-                            shared = shared,
-                            excludedFromStats = excluded
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { confirmingDelete = true }) {
+                    Text("Удалить", style = Kaspi.type.bodyL, color = Kaspi.colors.neg)
+                }
+                Spacer(Modifier.width(8.dp))
+                PrimaryButton(
+                    text = "Сохранить",
+                    onClick = {
+                        onSave(
+                            tx.copy(
+                                amount = amountValue ?: tx.amount,
+                                merchant = merchant.takeIf { it.isNotBlank() },
+                                account = account.takeIf { it.isNotBlank() },
+                                type = type,
+                                category = category ?: Category.OTHER,
+                                shared = shared,
+                                excludedFromStats = excluded
+                            )
                         )
-                    )
-                },
-                enabled = amountText.isEmpty() || amountValue != null,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Сохранить")
+                    },
+                    enabled = amountText.isEmpty() || amountValue != null,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
-}
 
-private fun formatEditable(value: Double): String =
-    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            containerColor = Kaspi.colors.surf,
+            title = { Text("Удалить операцию?", style = Kaspi.type.titleL) },
+            text = {
+                Text(
+                    listOfNotNull(tx.merchant, tx.amount?.let { "−" + formatMoney(it, tx.currency) })
+                        .joinToString(" · "),
+                    style = Kaspi.type.bodyM,
+                    color = Kaspi.colors.ink2
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingDelete = false
+                    onDelete(tx)
+                }) { Text("Удалить", color = Kaspi.colors.neg) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingDelete = false }) { Text("Отмена", color = Kaspi.colors.ink) }
+            }
+        )
+    }
+}
 
 /** A labelled switch whose whole row is the touch target. */
 @Composable
@@ -175,28 +176,24 @@ fun SwitchRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(text = title, style = Kaspi.type.bodyL, color = Kaspi.colors.ink)
+            subtitle?.let { Text(text = it, style = Kaspi.type.bodyS, color = Kaspi.colors.ink2) }
         }
         Switch(
             checked = checked,
             onCheckedChange = null,
-            // The theme's default "off" track is too faint to read as a control.
             colors = SwitchDefaults.colors(
-                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                uncheckedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                checkedThumbColor = Kaspi.colors.onAcc,
+                checkedTrackColor = Kaspi.colors.accent,
+                checkedBorderColor = Kaspi.colors.accent,
+                // The default "off" track is too faint to read as a control.
+                uncheckedThumbColor = Kaspi.colors.ink2,
+                uncheckedTrackColor = Kaspi.colors.surf2,
+                uncheckedBorderColor = Kaspi.colors.ink3
             )
         )
     }
 }
+
+private fun formatEditable(value: Double): String =
+    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()

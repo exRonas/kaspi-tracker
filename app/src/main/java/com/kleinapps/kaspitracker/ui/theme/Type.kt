@@ -1,96 +1,131 @@
 package com.kleinapps.kaspitracker.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.kleinapps.kaspitracker.R
 
-private val Default = FontFamily.SansSerif
+// Variable fonts bundled in res/font (SIL Open Font License). Each Font entry
+// pins one weight; Literata also its optical size, which is what gives the
+// big amounts their bookish character.
+@OptIn(ExperimentalTextApi::class)
+private fun literata(weight: Int, opticalSize: Float) = Font(
+    R.font.literata,
+    weight = FontWeight(weight),
+    variationSettings = FontVariation.Settings(
+        FontVariation.weight(weight),
+        FontVariation.Setting("opsz", opticalSize)
+    )
+)
 
-/**
- * Lining tabular figures: money columns line up digit for digit instead of
- * jittering as amounts change, which is most of what makes a finance screen
- * look built rather than typed.
- */
+@OptIn(ExperimentalTextApi::class)
+private fun variable(res: Int, weight: Int) = Font(
+    res,
+    weight = FontWeight(weight),
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight))
+)
+
+/** Literata — amounts and headings. Large optical size for display numbers. */
+val LiterataDisplay = FontFamily(literata(500, 48f))
+val Literata = FontFamily(literata(500, 24f), literata(600, 24f))
+
+/** Onest — everything else in the interface. */
+val Onest = FontFamily(
+    variable(R.font.onest, 400),
+    variable(R.font.onest, 500),
+    variable(R.font.onest, 600),
+    variable(R.font.onest, 700)
+)
+
+/** JetBrains Mono — only the notification log and pairing codes. */
+val JetBrainsMono = FontFamily(
+    variable(R.font.jetbrains_mono, 400),
+    variable(R.font.jetbrains_mono, 500)
+)
+
+/** Lining tabular figures: amounts line up digit for digit. */
 private const val TABULAR = "tnum, lnum"
 
-val AppTypography = Typography(
-    displayLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 44.sp,
-        lineHeight = 48.sp,
-        letterSpacing = (-1.4).sp,
+/** The design's type scale (Kaspi Tracker Tokens). */
+@Immutable
+data class KaspiType(
+    val display: TextStyle = TextStyle(
+        fontFamily = LiterataDisplay, fontWeight = FontWeight(500),
+        fontSize = 40.sp, lineHeight = 48.sp, letterSpacing = (-0.02).em,
         fontFeatureSettings = TABULAR
     ),
-    displaySmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 34.sp,
-        lineHeight = 40.sp,
-        letterSpacing = (-0.9).sp,
-        fontFeatureSettings = TABULAR
+    val headline: TextStyle = TextStyle(
+        fontFamily = Literata, fontWeight = FontWeight(500),
+        fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = (-0.015).em
     ),
-    headlineMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 26.sp,
-        lineHeight = 32.sp,
-        letterSpacing = (-0.5).sp,
-        fontFeatureSettings = TABULAR
+    val titleL: TextStyle = TextStyle(
+        fontFamily = Literata, fontWeight = FontWeight(500),
+        fontSize = 22.sp, lineHeight = 28.sp
     ),
-    headlineSmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = (-0.3).sp,
-        fontFeatureSettings = TABULAR
+    val amountM: TextStyle = TextStyle(
+        fontFamily = Literata, fontWeight = FontWeight(500),
+        fontSize = 20.sp, lineHeight = 28.sp, fontFeatureSettings = TABULAR
     ),
-    titleLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 19.sp,
-        lineHeight = 25.sp,
-        letterSpacing = (-0.2).sp
+    val titleM: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(600),
+        fontSize = 17.sp, lineHeight = 24.sp
     ),
-    titleMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
-        lineHeight = 22.sp
+    val bodyL: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(500),
+        fontSize = 15.sp, lineHeight = 20.sp
     ),
-    bodyLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 22.sp
+    val bodyM: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(400),
+        fontSize = 14.sp, lineHeight = 20.sp
     ),
-    bodyMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
+    val bodyS: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(400),
+        fontSize = 13.sp, lineHeight = 18.sp
     ),
-    bodySmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.5.sp,
-        lineHeight = 17.sp
+    val label: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(500),
+        fontSize = 12.sp, lineHeight = 16.sp
     ),
-    labelLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 18.sp
+    val overline: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(600),
+        fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.08.em
     ),
-    labelMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 11.5.sp,
-        lineHeight = 15.sp,
-        // Small caps-ish label feel without an actual small-caps font.
-        letterSpacing = 0.7.sp
+    /** Amounts inside rows: Onest, tabular. */
+    val money: TextStyle = TextStyle(
+        fontFamily = Onest, fontWeight = FontWeight(600),
+        fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TABULAR
+    ),
+    val mono: TextStyle = TextStyle(
+        fontFamily = JetBrainsMono, fontWeight = FontWeight(400),
+        fontSize = 12.sp, lineHeight = 18.sp
     )
+)
+
+val LocalKaspiType = staticCompositionLocalOf { KaspiType() }
+
+/** Material slots mapped onto the same scale, for stock components (fields, dialogs, chips). */
+fun materialTypography(t: KaspiType) = Typography(
+    displayLarge = t.display,
+    displayMedium = t.display,
+    displaySmall = t.headline,
+    headlineLarge = t.headline,
+    headlineMedium = t.headline,
+    headlineSmall = t.titleL,
+    titleLarge = t.titleL,
+    titleMedium = t.titleM,
+    titleSmall = t.bodyL.copy(fontWeight = FontWeight(600)),
+    bodyLarge = t.bodyL.copy(fontWeight = FontWeight(400)),
+    bodyMedium = t.bodyM,
+    bodySmall = t.bodyS,
+    labelLarge = t.bodyM.copy(fontWeight = FontWeight(600)),
+    labelMedium = t.label,
+    labelSmall = t.overline
 )

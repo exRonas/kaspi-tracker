@@ -4,126 +4,101 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.NorthEast
-import androidx.compose.material.icons.filled.SouthWest
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.DonutLarge
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kleinapps.kaspitracker.data.Category
-import com.kleinapps.kaspitracker.ui.components.BarChart
-import com.kleinapps.kaspitracker.ui.components.AppCard
-import com.kleinapps.kaspitracker.ui.components.SectionHeader
-import com.kleinapps.kaspitracker.ui.components.BarEntry
 import com.kleinapps.kaspitracker.ui.components.AppCard
 import com.kleinapps.kaspitracker.ui.components.CategoryAvatar
-import com.kleinapps.kaspitracker.ui.components.IconBadge
-import com.kleinapps.kaspitracker.ui.components.Pill
 import com.kleinapps.kaspitracker.ui.components.DonutChart
 import com.kleinapps.kaspitracker.ui.components.DonutSlice
+import com.kleinapps.kaspitracker.ui.components.EmptyState
+import com.kleinapps.kaspitracker.ui.components.FilterPill
+import com.kleinapps.kaspitracker.ui.components.ScreenHeader
+import com.kleinapps.kaspitracker.ui.components.SectionHeader
+import com.kleinapps.kaspitracker.ui.components.ShareBar
 import com.kleinapps.kaspitracker.ui.components.color
-import com.kleinapps.kaspitracker.ui.theme.Income
-import com.kleinapps.kaspitracker.ui.theme.Spend
-import com.kleinapps.kaspitracker.util.formatMoney
+import com.kleinapps.kaspitracker.ui.theme.Kaspi
+import com.kleinapps.kaspitracker.util.formatMoneyWhole
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun AnalyticsScreen(
     onOpenCategory: (Category, Long, Long, String) -> Unit = { _, _, _, _ -> },
+    headerActions: @Composable () -> Unit = {},
     viewModel: AnalyticsViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item { ScreenHeader(kicker = "Куда уходят деньги", title = "Аналитика") { headerActions() } }
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AnalyticsPeriod.entries.forEach { period ->
-                    FilterChip(
+                    FilterPill(
+                        label = period.label,
                         selected = state.period == period,
-                        onClick = { viewModel.selectPeriod(period) },
-                        label = { Text(period.label) }
+                        onClick = { viewModel.selectPeriod(period) }
                     )
                 }
             }
         }
+        item { BalanceCard(spent = state.spent, income = state.income) }
+        item { MonthComparison(thisMonth = state.thisMonth, prevMonth = state.prevMonth) }
 
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SummaryCard(
-                    title = "Потрачено",
-                    value = "− ${formatMoney(state.spent)}",
-                    valueColor = Spend,
-                    icon = Icons.Filled.SouthWest,
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryCard(
-                    title = "Получено",
-                    value = "+ ${formatMoney(state.income)}",
-                    valueColor = Income,
-                    icon = Icons.Filled.NorthEast,
-                    modifier = Modifier.weight(1f)
+        if (state.byCategory.isEmpty()) {
+            item {
+                EmptyState(
+                    icon = Icons.Outlined.DonutLarge,
+                    title = "За этот период трат нет",
+                    subtitle = "Выбери другой период или дождись первых операций",
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
-        }
-
-        if (state.byCategory.isNotEmpty()) {
+        } else {
             item {
-                SectionCard(title = "По категориям") {
+                AppCard {
+                    SectionHeader(title = "По категориям")
                     DonutChart(
-                        slices = state.byCategory.map {
-                            DonutSlice(it.category.label, it.amount, it.category.color)
-                        },
-                        total = state.spent,
-                        // The tappable breakdown below is the legend.
-                        showLegend = false
+                        slices = state.byCategory.map { DonutSlice(it.category.label, it.amount, it.category.color) },
+                        total = state.spent
                     )
-                    Spacer(Modifier.height(6.dp))
                     state.byCategory.forEach { entry ->
-                        CategoryBreakdownRow(
-                            entry = entry,
-                            total = state.spent,
-                            onClick = {
-                                onOpenCategory(
-                                    entry.category, state.from, state.to, state.period.label
-                                )
-                            }
-                        )
+                        CategoryRow(entry, state.spent) {
+                            onOpenCategory(entry.category, state.from, state.to, state.period.label)
+                        }
                     }
                 }
             }
@@ -131,172 +106,154 @@ fun AnalyticsScreen(
 
         if (state.topMerchants.isNotEmpty()) {
             item {
-                SectionCard(title = "Топ мерчантов") {
-                    state.topMerchants.forEach { merchant ->
+                AppCard {
+                    SectionHeader(title = "Топ мерчантов")
+                    Spacer(Modifier.height(4.dp))
+                    state.topMerchants.forEachIndexed { index, merchant ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 7.dp),
+                            modifier = Modifier.padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Text(
+                                text = "${index + 1}",
+                                style = Kaspi.type.amountM,
+                                color = Kaspi.colors.ink2,
+                                modifier = Modifier.width(28.dp)
+                            )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = merchant.merchant,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
+                                    style = Kaspi.type.bodyL,
+                                    color = Kaspi.colors.ink,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                Text(
-                                    text = "операций: ${merchant.count}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(text = "операций: ${merchant.count}", style = Kaspi.type.label, color = Kaspi.colors.ink2)
                             }
-                            Text(
-                                text = formatMoney(merchant.amount),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Text(text = formatMoneyWhole(merchant.amount), style = Kaspi.type.money, color = Kaspi.colors.ink)
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        item {
-            SectionCard(title = "Сравнение месяцев") {
-                MonthComparison(thisMonth = state.thisMonth, prevMonth = state.prevMonth)
+/** Spent vs received over the period as one split bar, with what is left over. */
+@Composable
+private fun BalanceCard(spent: Double, income: Double) {
+    val total = spent + income
+    AppCard {
+        Row {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Потрачено", style = Kaspi.type.label, color = Kaspi.colors.ink2)
+                Text(text = "−" + formatMoneyWhole(spent), style = Kaspi.type.titleL, color = Kaspi.colors.ink)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Получено", style = Kaspi.type.label, color = Kaspi.colors.ink2)
+                Text(text = "+" + formatMoneyWhole(income), style = Kaspi.type.titleL, color = Kaspi.colors.pos)
             }
         }
-
-        item { Spacer(Modifier.height(24.dp)) }
-    }
-}
-
-@Composable
-private fun SummaryCard(
-    title: String,
-    value: String,
-    valueColor: androidx.compose.ui.graphics.Color,
-    icon: ImageVector,
-    modifier: Modifier = Modifier
-) {
-    AppCard(modifier = modifier, contentPadding = 16.dp, accent = valueColor) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBadge(icon = icon, tint = valueColor, size = 28.dp)
-            Spacer(Modifier.width(8.dp))
+        if (total > 0) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (spent > 0) ShareBar(1f, Kaspi.colors.accent, Modifier.weight(spent.toFloat()))
+                if (income > 0) ShareBar(1f, Kaspi.colors.pos, Modifier.weight(income.toFloat()))
+            }
+            Spacer(Modifier.height(8.dp))
+            val left = income - spent
             Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = if (left >= 0) "Осталось ${formatMoneyWhole(left)}" else "Потрачено больше полученного на ${formatMoneyWhole(-left)}",
+                style = Kaspi.type.label,
+                color = Kaspi.colors.ink2
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            color = valueColor,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    AppCard {
-        SectionHeader(title = title)
-        Spacer(Modifier.height(12.dp))
-        content()
     }
 }
 
 @Composable
 private fun MonthComparison(thisMonth: Double, prevMonth: Double) {
-    Column {
-        val diff = thisMonth - prevMonth
-        val diffText = when {
-            prevMonth <= 0 && thisMonth <= 0 -> "Нет данных для сравнения"
-            diff > 0 -> "На ${formatMoney(diff)} больше, чем в прошлом месяце"
-            diff < 0 -> "На ${formatMoney(-diff)} меньше, чем в прошлом месяце"
-            else -> "Ровно как в прошлом месяце"
-        }
-        BarChart(
-            bars = listOf(
-                BarEntry("Прошлый", prevMonth),
-                BarEntry("Этот", thisMonth)
-            ),
-            height = 90.dp
-        )
+    val max = maxOf(thisMonth, prevMonth).coerceAtLeast(1.0)
+    AppCard {
+        SectionHeader(title = "Сравнение месяцев")
+        Spacer(Modifier.height(12.dp))
+        ComparisonLine("Этот", thisMonth, (thisMonth / max).toFloat(), Kaspi.colors.accent)
         Spacer(Modifier.height(8.dp))
+        ComparisonLine("Прошлый", prevMonth, (prevMonth / max).toFloat(), Kaspi.colors.ink3)
+        Spacer(Modifier.height(12.dp))
+        val diff = thisMonth - prevMonth
         Text(
-            text = diffText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (diff > 0) Spend else MaterialTheme.colorScheme.onSurfaceVariant
+            text = when {
+                prevMonth == 0.0 -> "Нет данных для сравнения"
+                abs(diff) < 1 -> "Ровно как в прошлом месяце"
+                diff > 0 -> "На ${formatMoneyWhole(diff)} больше, чем в прошлом месяце"
+                else -> "На ${formatMoneyWhole(-diff)} меньше, чем в прошлом месяце"
+            },
+            style = Kaspi.type.bodyM,
+            color = Kaspi.colors.ink
+        )
+    }
+}
+
+@Composable
+private fun ComparisonLine(label: String, amount: Double, share: Float, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = label, style = Kaspi.type.bodyS, color = Kaspi.colors.ink2, modifier = Modifier.width(64.dp))
+        ShareBar(fraction = share, color = color, modifier = Modifier.weight(1f), height = 10.dp)
+        Text(
+            text = formatMoneyWhole(amount),
+            style = Kaspi.type.money,
+            color = Kaspi.colors.ink,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(100.dp)
         )
     }
 }
 
 /**
  * One category under the donut. Tapping it opens History filtered to exactly
- * this category and period, so the number can always be traced to the
- * operations behind it.
+ * this category and period, so the number can always be traced.
  */
 @Composable
-private fun CategoryBreakdownRow(
-    entry: CategorySum,
-    total: Double,
-    onClick: () -> Unit
-) {
-    val share = if (total > 0) (entry.amount / total * 100).toInt() else 0
+private fun CategoryRow(entry: CategorySum, total: Double, onClick: () -> Unit) {
+    val share = if (total > 0) (entry.amount / total).toFloat() else 0f
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        CategoryAvatar(entry.category, size = 34.dp)
+        CategoryAvatar(entry.category)
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row {
                 Text(
                     text = entry.category.label,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = Kaspi.type.bodyL,
+                    color = Kaspi.colors.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.width(8.dp))
-                Pill(text = "$share%", tint = entry.category.color)
+                Text(text = formatMoneyWhole(entry.amount), style = Kaspi.type.money, color = Kaspi.colors.ink)
             }
             Spacer(Modifier.height(6.dp))
-            // Share of the period as a bar, so the list is scannable by shape
-            // before it is read by number.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth((share / 100f).coerceIn(0.02f, 1f))
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(entry.category.color)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ShareBar(fraction = share, color = entry.category.color, modifier = Modifier.weight(1f))
+                Text(
+                    text = "${(share * 100).roundToInt()}%",
+                    style = Kaspi.type.label,
+                    color = Kaspi.colors.ink2,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.width(40.dp)
                 )
             }
         }
-        Text(
-            text = formatMoney(entry.amount),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold
-        )
         Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
             contentDescription = "Открыть операции",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = Kaspi.colors.ink3
         )
     }
 }

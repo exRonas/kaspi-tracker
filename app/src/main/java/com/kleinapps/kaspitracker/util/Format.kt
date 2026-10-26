@@ -95,9 +95,27 @@ fun formatFullDate(millis: Long): String =
 fun greeting(millis: Long = System.currentTimeMillis()): String {
     val hour = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.HOUR_OF_DAY)
     return when (hour) {
-        in 5..11 -> "ДОБРОЕ УТРО"
-        in 12..17 -> "ДОБРЫЙ ДЕНЬ"
-        in 18..22 -> "ДОБРЫЙ ВЕЧЕР"
-        else -> "ДОБРОЙ НОЧИ"
+        in 5..11 -> "Доброе утро"
+        in 12..17 -> "Добрый день"
+        in 18..22 -> "Добрый вечер"
+        else -> "Доброй ночи"
     }
 }
+
+private val MONTHS_IN = listOf(
+    "январе", "феврале", "марте", "апреле", "мае", "июне",
+    "июле", "августе", "сентябре", "октябре", "ноябре", "декабре"
+)
+
+private val MONTHS_NAME = listOf(
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+)
+
+/** "октябре" — for "Потрачено в октябре". */
+fun monthIn(millis: Long = System.currentTimeMillis()): String =
+    MONTHS_IN[Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.MONTH)]
+
+/** "Октябрь" — for "Наш октябрь", "Октябрь Ани". */
+fun monthName(millis: Long = System.currentTimeMillis()): String =
+    MONTHS_NAME[Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.MONTH)]
