@@ -18,3 +18,4 @@ local.properties
 *.pdf
 out*.txt
 *.zip
+__pycache__/
