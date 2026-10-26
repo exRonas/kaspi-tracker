@@ -3,6 +3,7 @@ package com.kleinapps.kaspitracker.data
 import android.content.Context
 import com.kleinapps.kaspitracker.parser.KaspiNotificationParser
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,6 +33,18 @@ class TransactionRepository(
     fun observeAllWithAmount(): Flow<List<Transaction>> = dao.observeAllWithAmount()
 
     fun observeRecent(limit: Int = 10): Flow<List<Transaction>> = dao.observeRecent(limit)
+
+    /**
+     * The operations behind one view (mine, the partner's, or what we share),
+     * newest first — what every statistics screen reads.
+     */
+    fun observeLedger(scope: ViewScope): Flow<List<LedgerEntry>> = when (scope) {
+        // Own view needs no partner rows; skip the second query.
+        ViewScope.ME -> dao.observeAllWithAmount().map { ledgerFor(scope, it, emptyList()) }
+        else -> combine(dao.observeAllWithAmount(), partnerDao.observeAll()) { mine, partner ->
+            ledgerFor(scope, mine, partner.map { it.toTransaction() })
+        }
+    }
 
     fun observeSpentBetween(from: Long, to: Long): Flow<Double> = dao.observeSpentBetween(from, to)
 

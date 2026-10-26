@@ -5,6 +5,7 @@ import android.util.Log
 import com.kleinapps.kaspitracker.data.TransactionRepository
 import com.kleinapps.kaspitracker.service.AutoBackup
 import com.kleinapps.kaspitracker.service.ListenerWatchdog
+import com.kleinapps.kaspitracker.sync.CoupleStore
 import com.kleinapps.kaspitracker.ui.theme.ThemeController
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +24,7 @@ class KaspiTrackerApp : Application() {
         // Required once before any PDDocument.load() call (receipt import).
         PDFBoxResourceLoader.init(applicationContext)
         ThemeController.init(this)
+        CoupleStore.init(this)
         // Weekly safety-net copy of everything into Downloads.
         AutoBackup.schedule(this)
         // Periodic check that the notification listener is still being fed.

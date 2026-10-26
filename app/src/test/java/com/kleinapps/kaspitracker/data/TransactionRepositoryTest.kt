@@ -1,6 +1,7 @@
 package com.kleinapps.kaspitracker.data
 
 import com.kleinapps.kaspitracker.parser.KaspiNotificationParser
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -376,6 +377,30 @@ class TransactionRepositoryTest {
         fresh.importBackup(json)
 
         assertEquals(Category.CAFE, rules.rules.value.single().category)
+    }
+
+    // --- views ------------------------------------------------------------
+
+    @Test
+    fun `ledger in together scope combines shared rows of both people`() = runTest {
+        val partner = FakePartnerTransactionDao()
+        val both = fakeRepository(dao, ruleDao, partnerDao = partner)
+        val mine = both.insert(manual("Magnum"))
+        both.setShared(listOf(mine), true)
+        both.insert(manual("Свое"))
+        partner.upsertAll(
+            listOf(
+                PartnerTransaction("p1", 3_000_000L, 700.0, TxType.PURCHASE, "Coffee", null, null, TxSource.MANUAL, true, false),
+                PartnerTransaction("p2", 3_000_001L, 900.0, TxType.PURCHASE, "Одежда", null, null, TxSource.MANUAL, false, false)
+            )
+        )
+
+        val together = both.observeLedger(ViewScope.TOGETHER).first()
+        val hers = both.observeLedger(ViewScope.PARTNER).first()
+
+        assertEquals(listOf("Coffee", "Magnum"), together.map { it.tx.merchant })
+        assertEquals(listOf(Owner.PARTNER, Owner.ME), together.map { it.owner })
+        assertEquals(2, hers.size)
     }
 
     // --- shared / own -------------------------------------------------------

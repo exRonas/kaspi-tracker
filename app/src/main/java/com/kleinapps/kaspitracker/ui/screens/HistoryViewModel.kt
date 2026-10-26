@@ -7,6 +7,13 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kleinapps.kaspitracker.data.Category
+import com.kleinapps.kaspitracker.data.LedgerEntry
+import com.kleinapps.kaspitracker.data.ViewScope
+import com.kleinapps.kaspitracker.sync.CoupleStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TransactionRepository
 import com.kleinapps.kaspitracker.data.TxType
@@ -42,7 +49,8 @@ data class HistoryFilters(
 }
 
 data class HistoryUiState(
-    val grouped: Map<String, List<Transaction>> = emptyMap(),
+    val grouped: Map<String, List<LedgerEntry>> = emptyMap(),
+    val scope: ViewScope = ViewScope.ME,
     val filters: HistoryFilters = HistoryFilters(),
     val accounts: List<String> = emptyList(),
     val matchCount: Int = 0
@@ -53,14 +61,19 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = TransactionRepository.get(app)
     private val filtersFlow = MutableStateFlow(HistoryFilters())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val ledger = CoupleStore.state.map { it.effectiveScope }.distinctUntilChanged()
+        .flatMapLatest { scope -> repo.observeLedger(scope).map { scope to it } }
+
     val state: StateFlow<HistoryUiState> = combine(
-        repo.observeAllWithAmount(),
+        ledger,
         repo.observeAccounts(),
         filtersFlow
-    ) { all, accounts, filters ->
-        val filtered = all.filter { tx -> matches(tx, filters) }
+    ) { (scope, all), accounts, filters ->
+        val filtered = all.filter { entry -> matches(entry.tx, filters) }
         HistoryUiState(
-            grouped = filtered.groupBy { formatDayHeader(it.timestamp) },
+            grouped = filtered.groupBy { formatDayHeader(it.tx.timestamp) },
+            scope = scope,
             filters = filters,
             accounts = accounts,
             matchCount = filtered.size
@@ -127,7 +140,7 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Exports the currently filtered rows to CSV and opens the system share sheet. */
     fun exportCsv(context: Context) {
-        val rows = state.value.grouped.values.flatten()
+        val rows = state.value.grouped.values.flatten().map { it.tx }
         viewModelScope.launch {
             val file = withContext(Dispatchers.IO) { writeCsv(context, rows) }
             val uri = FileProvider.getUriForFile(

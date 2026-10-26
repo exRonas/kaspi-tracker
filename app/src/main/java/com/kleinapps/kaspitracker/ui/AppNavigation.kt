@@ -46,7 +46,11 @@ import com.kleinapps.kaspitracker.ui.screens.HistoryScreen
 import com.kleinapps.kaspitracker.ui.screens.HomeScreen
 import com.kleinapps.kaspitracker.ui.screens.RawLogScreen
 import com.kleinapps.kaspitracker.ui.screens.StatsScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kleinapps.kaspitracker.sync.CoupleStore
+import com.kleinapps.kaspitracker.ui.components.rememberPeople
 import com.kleinapps.kaspitracker.ui.theme.Kaspi
+import com.kleinapps.kaspitracker.ui.theme.ProvideAccent
 
 object Routes {
     const val HOME = "home"
@@ -105,7 +109,11 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
     // so tab selection and the title compare on the part before the query.
     val route = backStack?.destination?.route?.substringBefore('?')
     val title = SCREEN_TITLES[route]
+    val couple by CoupleStore.state.collectAsStateWithLifecycle()
+    val people = rememberPeople()
 
+    // The whole app takes the colour of whoever's numbers are on screen.
+    ProvideAccent(people.accentOf(couple.effectiveScope)) {
     Scaffold(
         topBar = {
             if (title != null) {
@@ -225,6 +233,7 @@ fun AppNavigation(notificationAccessGranted: Boolean) {
             composable(Routes.BACKUP) { BackupScreen() }
             composable(Routes.BATCH_IMPORT) { BatchImportScreen() }
         }
+    }
     }
 }
 

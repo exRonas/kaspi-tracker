@@ -37,6 +37,7 @@ import com.kleinapps.kaspitracker.ui.components.BarEntry
 import com.kleinapps.kaspitracker.ui.components.EmptyState
 import com.kleinapps.kaspitracker.ui.components.PairedBarChart
 import com.kleinapps.kaspitracker.ui.components.RowDivider
+import com.kleinapps.kaspitracker.ui.components.ScopeBar
 import com.kleinapps.kaspitracker.ui.components.ScreenHeader
 import com.kleinapps.kaspitracker.ui.components.SectionHeader
 import com.kleinapps.kaspitracker.ui.components.ShareBar
@@ -87,6 +88,7 @@ fun StatsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { ScreenHeader(kicker = "Год и привычки", title = "Статистика") { headerActions() } }
+        item { ScopeBar() }
         item {
             TabSwitch(
                 options = listOf(StatsMode.MONTHS to "По месяцам", StatsMode.GENERAL to "Общая"),

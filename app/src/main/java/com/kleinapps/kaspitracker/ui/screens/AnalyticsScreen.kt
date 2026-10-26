@@ -36,6 +36,7 @@ import com.kleinapps.kaspitracker.ui.components.DonutChart
 import com.kleinapps.kaspitracker.ui.components.DonutSlice
 import com.kleinapps.kaspitracker.ui.components.EmptyState
 import com.kleinapps.kaspitracker.ui.components.FilterPill
+import com.kleinapps.kaspitracker.ui.components.ScopeBar
 import com.kleinapps.kaspitracker.ui.components.ScreenHeader
 import com.kleinapps.kaspitracker.ui.components.SectionHeader
 import com.kleinapps.kaspitracker.ui.components.ShareBar
@@ -59,6 +60,7 @@ fun AnalyticsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { ScreenHeader(kicker = "Куда уходят деньги", title = "Аналитика") { headerActions() } }
+        item { ScopeBar() }
         item {
             Row(
                 modifier = Modifier

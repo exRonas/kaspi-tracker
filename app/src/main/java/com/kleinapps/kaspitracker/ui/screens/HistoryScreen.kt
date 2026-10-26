@@ -42,6 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kleinapps.kaspitracker.data.Category
+import com.kleinapps.kaspitracker.data.Owner
+import com.kleinapps.kaspitracker.data.ViewScope
+import com.kleinapps.kaspitracker.ui.components.ScopeBar
+import com.kleinapps.kaspitracker.ui.components.rememberPeople
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TxType
 import com.kleinapps.kaspitracker.data.isCountedSpending
@@ -77,6 +81,7 @@ fun HistoryScreen(
         }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val people = rememberPeople()
     val context = LocalContext.current
     var editing by remember { mutableStateOf<Transaction?>(null) }
     // Ids picked with a long press; non-empty means the screen is in pick mode.
@@ -102,10 +107,11 @@ fun HistoryScreen(
                     headerActions()
                 }
             }
+            item { ScopeBar() }
 
             if (picking) {
                 item {
-                    val picked = state.grouped.values.flatten().filter { it.id in selected }
+                    val picked = state.grouped.values.flatten().map { it.tx }.filter { it.id in selected }
                     SelectionBar(
                         count = picked.size,
                         total = picked.sumOf { it.amount ?: 0.0 },
@@ -178,14 +184,18 @@ fun HistoryScreen(
 
             state.grouped.forEach { (header, items) ->
                 item(key = "header_$header") {
-                    val dayTotal = items.filter { it.isCountedSpending }.sumOf { it.amount ?: 0.0 }
+                    val dayTotal = items.filter { it.tx.isCountedSpending }.sumOf { it.tx.amount ?: 0.0 }
                     val title = if (header == "Сегодня" || header == "Вчера") header
-                    else "$header · ${formatWeekday(items.first().timestamp)}"
+                    else "$header · ${formatWeekday(items.first().tx.timestamp)}"
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             // In pick mode a tap on the day takes the whole day.
-                            .then(if (picking) Modifier.clickable { toggle(items.map { it.id }) } else Modifier)
+                            .then(
+                                if (picking) Modifier.clickable {
+                                    toggle(items.filter { it.owner == Owner.ME }.map { it.tx.id })
+                                } else Modifier
+                            )
                             .padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -197,14 +207,20 @@ fun HistoryScreen(
                 }
                 item(key = "card_$header") {
                     AppCard(contentPadding = 0.dp) {
-                        items.forEach { tx ->
+                        items.forEach { entry ->
+                            val tx = entry.tx
+                            // The partner's rows are for reading: no editing, no picking.
+                            val own = entry.owner == Owner.ME
                             TransactionRow(
                                 tx = tx,
-                                selected = if (picking) tx.id in selected else null,
+                                selected = if (picking && own) tx.id in selected else null,
+                                owner = if (state.scope == ViewScope.TOGETHER) people.mark(entry.owner) else null,
                                 modifier = Modifier
-                                    .combinedClickable(
-                                        onClick = { if (picking) toggle(listOf(tx.id)) else editing = tx },
-                                        onLongClick = { toggle(listOf(tx.id)) }
+                                    .then(
+                                        if (own) Modifier.combinedClickable(
+                                            onClick = { if (picking) toggle(listOf(tx.id)) else editing = tx },
+                                            onLongClick = { toggle(listOf(tx.id)) }
+                                        ) else Modifier
                                     )
                                     .padding(horizontal = 16.dp)
                             )
@@ -227,7 +243,7 @@ fun HistoryScreen(
             }
         }
 
-        if (!picking) {
+        if (!picking && state.scope != ViewScope.PARTNER) {
             ExtendedFloatingActionButton(
                 onClick = onAddManual,
                 modifier = Modifier

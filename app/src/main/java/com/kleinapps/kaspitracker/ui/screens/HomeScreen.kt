@@ -50,7 +50,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.Color
+import com.kleinapps.kaspitracker.data.Owner
+import com.kleinapps.kaspitracker.data.ViewScope
+import com.kleinapps.kaspitracker.sync.CoupleStore
 import com.kleinapps.kaspitracker.ui.components.AnimatedMoney
+import com.kleinapps.kaspitracker.ui.components.PartnerViewNote
+import com.kleinapps.kaspitracker.ui.components.People
+import com.kleinapps.kaspitracker.ui.components.PersonAvatar
+import com.kleinapps.kaspitracker.ui.components.ScopeBar
+import com.kleinapps.kaspitracker.ui.components.rememberPeople
+import com.kleinapps.kaspitracker.util.monthName
 import com.kleinapps.kaspitracker.ui.components.AppCard
 import com.kleinapps.kaspitracker.ui.components.Banner
 import com.kleinapps.kaspitracker.ui.components.BarChart
@@ -92,6 +102,10 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val couple by CoupleStore.state.collectAsStateWithLifecycle()
+    val people = rememberPeople()
+    val scope = state.scope
+    val readOnly = scope == ViewScope.PARTNER
     val context = LocalContext.current
     // Recent operations picked with a long press; non-empty means pick mode.
     var selected by remember { mutableStateOf(emptySet<Long>()) }
@@ -110,11 +124,17 @@ fun HomeScreen(
             item {
                 ScreenHeader(
                     kicker = formatFullDate(System.currentTimeMillis()),
-                    title = greeting()
+                    title = when (scope) {
+                        ViewScope.ME -> greeting() + couple.myName.takeIf { it.isNotBlank() }?.let { ",\n$it" }.orEmpty()
+                        ViewScope.PARTNER -> "${monthName()} · ${people.partnerName}"
+                        ViewScope.TOGETHER -> "Наш ${monthName().lowercase()}"
+                    }
                 ) { headerActions() }
             }
+            item { ScopeBar() }
+            if (readOnly) item { PartnerViewNote(couple) }
 
-            if (!notificationAccessGranted) {
+            if (!notificationAccessGranted && !readOnly) {
                 item {
                     Banner(
                         icon = Icons.Outlined.NotificationsOff,
@@ -140,6 +160,14 @@ fun HomeScreen(
 
             item {
                 HeroCard(
+                    label = when (scope) {
+                        ViewScope.ME -> "Потрачено в ${monthIn()}"
+                        ViewScope.PARTNER -> "${people.partnerName} · потрачено в ${monthIn()}"
+                        ViewScope.TOGETHER -> "Общие траты в ${monthIn()}"
+                    },
+                    split = if (scope == ViewScope.TOGETHER) {
+                        { ContributionSplit(state.mySharedPart, state.partnerSharedPart, people) }
+                    } else null,
                     monthSpent = state.monthSpent,
                     monthIncome = state.monthIncome,
                     todaySpent = state.todaySpent,
@@ -160,7 +188,7 @@ fun HomeScreen(
 
             if (picking) {
                 item {
-                    val picked = state.recent.filter { it.id in selected }
+                    val picked = state.recent.map { it.tx }.filter { it.id in selected }
                     SelectionBar(
                         count = picked.size,
                         total = picked.sumOf { it.amount ?: 0.0 },
@@ -189,16 +217,22 @@ fun HomeScreen(
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
                     }
-                    state.recent.forEach { tx ->
+                    state.recent.forEach { entry ->
+                        val tx = entry.tx
+                        // Only own rows can be picked; the partner's are read-only here.
+                        val own = entry.owner == Owner.ME
                         TransactionRow(
                             tx = tx,
-                            selected = if (picking) tx.id in selected else null,
+                            selected = if (picking && own) tx.id in selected else null,
+                            owner = if (scope == ViewScope.TOGETHER) people.mark(entry.owner) else null,
                             modifier = Modifier
                                 // Long press starts picking; while picking a tap
                                 // toggles. Outside pick mode rows stay inert here.
-                                .combinedClickable(
-                                    onClick = { if (picking) selected = selected.toggle(tx.id) },
-                                    onLongClick = { selected = selected.toggle(tx.id) }
+                                .then(
+                                    if (own) Modifier.combinedClickable(
+                                        onClick = { if (picking) selected = selected.toggle(tx.id) },
+                                        onLongClick = { selected = selected.toggle(tx.id) }
+                                    ) else Modifier
                                 )
                                 .padding(horizontal = 16.dp)
                         )
@@ -207,7 +241,7 @@ fun HomeScreen(
                 }
             }
 
-            item {
+            if (!readOnly) item {
                 Text(
                     text = "Инструменты",
                     style = Kaspi.type.titleM,
@@ -215,7 +249,7 @@ fun HomeScreen(
                     modifier = Modifier.padding(top = 12.dp, start = 4.dp)
                 )
             }
-            item {
+            if (!readOnly) item {
                 ToolGrid(
                     tiles = listOf(
                         Tool(Icons.Outlined.AddCircleOutline, "Добавить запись", "Наличные и всё, что без пуша", onAddManual),
@@ -225,7 +259,7 @@ fun HomeScreen(
                     )
                 )
             }
-            item {
+            if (!readOnly) item {
                 AppCard(contentPadding = 0.dp) {
                     LinkRow(
                         icon = Icons.Outlined.Terminal,
@@ -236,7 +270,7 @@ fun HomeScreen(
             }
         }
 
-        ExtendedFloatingActionButton(
+        if (!readOnly) ExtendedFloatingActionButton(
             onClick = onAddManual,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -256,6 +290,8 @@ fun HomeScreen(
  */
 @Composable
 private fun HeroCard(
+    label: String,
+    split: (@Composable () -> Unit)?,
     monthSpent: Double,
     monthIncome: Double,
     todaySpent: Double,
@@ -265,7 +301,7 @@ private fun HeroCard(
     AppCard(contentPadding = 20.dp) {
         Row(verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Потрачено в ${monthIn()}", style = Kaspi.type.bodyM, color = Kaspi.colors.ink2)
+                Text(text = label, style = Kaspi.type.bodyM, color = Kaspi.colors.ink2)
                 Spacer(Modifier.height(4.dp))
                 AnimatedMoney(amount = monthSpent, style = Kaspi.type.display)
                 Spacer(Modifier.height(8.dp))
@@ -302,6 +338,10 @@ private fun HeroCard(
         Spacer(Modifier.height(16.dp))
         RowDivider()
         Spacer(Modifier.height(12.dp))
+        if (split != null) {
+            split()
+            return@AppCard
+        }
         Row {
             HeroStat("СЕГОДНЯ", "−" + formatMoneyWhole(todaySpent), Kaspi.colors.ink, Modifier.weight(1f))
             HeroStat("ДОХОД", "+" + formatMoneyWhole(monthIncome), Kaspi.colors.pos, Modifier.weight(1f))
@@ -327,10 +367,48 @@ private fun TrendPill(trend: Double?) {
 }
 
 @Composable
-private fun HeroStat(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+private fun HeroStat(label: String, value: String, color: Color, modifier: Modifier) {
     Column(modifier = modifier) {
         Text(text = label, style = Kaspi.type.overline, color = Kaspi.colors.ink2)
         Text(text = value, style = Kaspi.type.amountM, color = color, maxLines = 1)
+    }
+}
+
+/** "Кто сколько внёс": the month's shared spending split between the two of us. */
+@Composable
+private fun ContributionSplit(mine: Double, partners: Double, people: People) {
+    val total = mine + partners
+    Text(text = "КТО СКОЛЬКО ВНЁС", style = Kaspi.type.overline, color = Kaspi.colors.ink2)
+    Spacer(Modifier.height(8.dp))
+    if (total <= 0) {
+        Text(text = "Общих трат в этом месяце ещё нет", style = Kaspi.type.bodyS, color = Kaspi.colors.ink2)
+        return
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (mine > 0) ShareBar(1f, people.myColor, Modifier.weight(mine.toFloat()), height = 8.dp)
+        if (partners > 0) ShareBar(1f, people.partnerColor, Modifier.weight(partners.toFloat()), height = 8.dp)
+    }
+    Spacer(Modifier.height(12.dp))
+    Row {
+        ContributionPart(people.myInitial, people.myColor, people.myName, mine, total, Modifier.weight(1f))
+        ContributionPart(people.partnerInitial, people.partnerColor, people.partnerName, partners, total, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ContributionPart(initial: String, color: Color, name: String, amount: Double, total: Double, modifier: Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.Top) {
+        PersonAvatar(initial, color, size = 22.dp)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(
+                text = "$name · ${(amount / total * 100).roundToInt()}%",
+                style = Kaspi.type.label,
+                color = Kaspi.colors.ink2,
+                maxLines = 1
+            )
+            Text(text = formatMoneyWhole(amount), style = Kaspi.type.amountM, color = Kaspi.colors.ink)
+        }
     }
 }
 

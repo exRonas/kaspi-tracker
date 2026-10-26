@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import com.kleinapps.kaspitracker.sync.CoupleStore
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
@@ -49,8 +52,12 @@ class AnalyticsViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = TransactionRepository.get(app)
     private val periodFlow = MutableStateFlow(AnalyticsPeriod.MONTH)
 
-    val state: StateFlow<AnalyticsUiState> = periodFlow.flatMapLatest { period ->
-        repo.observeAllWithAmount().map { all -> build(period, all) }
+    private val operations = CoupleStore.state.map { it.effectiveScope }.distinctUntilChanged()
+        .flatMapLatest { repo.observeLedger(it) }
+        .map { ledger -> ledger.map { it.tx } }
+
+    val state: StateFlow<AnalyticsUiState> = combine(periodFlow, operations) { period, all ->
+        build(period, all)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AnalyticsUiState())
 
     fun selectPeriod(period: AnalyticsPeriod) {

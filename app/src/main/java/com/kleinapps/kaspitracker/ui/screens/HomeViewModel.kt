@@ -4,6 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kleinapps.kaspitracker.data.Category
+import com.kleinapps.kaspitracker.data.LedgerEntry
+import com.kleinapps.kaspitracker.data.Owner
+import com.kleinapps.kaspitracker.data.ViewScope
+import com.kleinapps.kaspitracker.sync.CoupleStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import com.kleinapps.kaspitracker.data.Transaction
 import com.kleinapps.kaspitracker.data.TransactionRepository
 import com.kleinapps.kaspitracker.data.isCountedIncome
@@ -32,7 +40,7 @@ data class HomeUiState(
     val monthIncome: Double = 0.0,
     val last7Days: List<DayBar> = emptyList(),
     val topCategories: List<CategorySum> = emptyList(),
-    val recent: List<Transaction> = emptyList(),
+    val recent: List<LedgerEntry> = emptyList(),
     val uncategorizedCount: Int = 0,
     val forecast: MonthForecast? = null,
     /**
@@ -46,7 +54,11 @@ data class HomeUiState(
      * than the user's own rhythm explains — i.e. when the listener has most
      * likely been killed and spending is going unrecorded.
      */
-    val silentForHours: Int? = null
+    val silentForHours: Int? = null,
+    val scope: ViewScope = ViewScope.ME,
+    /** "Together" only: how much of the month's shared spending each of us paid. */
+    val mySharedPart: Double = 0.0,
+    val partnerSharedPart: Double = 0.0
 ) {
     /** Share more (positive) or less (negative) than the same days last month. */
     val monthTrend: Double?
@@ -82,11 +94,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             .apply { timeInMillis = now; add(java.util.Calendar.MONTH, -1) }
             .timeInMillis
 
+    private val scope = CoupleStore.state.map { it.effectiveScope }.distinctUntilChanged()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<HomeUiState> = combine(
-        repo.observeBetween(windowStart, Long.MAX_VALUE),
-        repo.observeRecent(6),
+        scope.flatMapLatest { s -> repo.observeLedger(s).map { s to it } },
         repo.observeUncategorized()
-    ) { window, recent, uncategorized ->
+    ) { (scope, ledger), uncategorized ->
+        val windowStart = windowStart
+        val window = ledger.map { it.tx }.filter { it.timestamp >= windowStart }
+        val recent = ledger.take(RECENT)
         val now = System.currentTimeMillis()
         val todayStart = startOfDay(now)
         val monthStart = startOfMonth(now)
@@ -116,9 +133,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 .sortedByDescending { it.amount }
                 .take(3),
             recent = recent,
-            uncategorizedCount = uncategorized.size,
+            uncategorizedCount = if (scope == ViewScope.PARTNER) 0 else uncategorized.size,
+            scope = scope,
+            mySharedPart = ledger.filter { it.owner == Owner.ME && it.tx.isCountedSpending && it.tx.timestamp >= monthStart }
+                .sumOf { it.tx.amount ?: 0.0 },
+            partnerSharedPart = ledger.filter { it.owner == Owner.PARTNER && it.tx.isCountedSpending && it.tx.timestamp >= monthStart }
+                .sumOf { it.tx.amount ?: 0.0 },
             forecast = forecastMonth(monthSpendings.sumOf { it.amount ?: 0.0 }, now),
-            silentForHours = listenerSilence(now),
+            // A dead listener only matters for this phone's own data.
+            silentForHours = if (scope == ViewScope.PARTNER) null else listenerSilence(now),
             sameSpanLastMonth = previousSpan.takeIf { it > 0 }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
@@ -167,5 +190,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        const val RECENT = 5
     }
 }
